@@ -96,15 +96,54 @@ class DataProcessor {
         }
 
         // 第一階段：建立環境結構
+        // 先收集所有環境的目的，找出最新的非預設目的
+        const environmentPurposes = new Map(); // 環境名稱 -> 最新的非預設目的
+        
+        rawData.forEach(record => {
+            const envName = record.environment;
+            if (record.purpose && 
+                record.purpose !== DataProcessor.DEFAULT_PURPOSE &&
+                record.purpose.trim() !== '') {
+                // 如果還沒有記錄，或者新目的與當前不同，則更新（使用最新的）
+                if (!environmentPurposes.has(envName) || 
+                    environmentPurposes.get(envName) !== record.purpose) {
+                    const oldPurpose = environmentPurposes.get(envName);
+                    environmentPurposes.set(envName, record.purpose);
+                    if (oldPurpose) {
+                        console.log(`環境 "${envName}" 的環境目的將更新: "${oldPurpose}" -> "${record.purpose}"`);
+                    }
+                }
+            }
+        });
+        
+        // 建立環境結構並設置環境目的
         rawData.forEach(record => {
             const envName = record.environment;
             if (!this.environments.has(envName)) {
+                // 使用收集到的最新非預設目的，如果沒有則使用記錄中的目的或預設值
+                const finalPurpose = environmentPurposes.get(envName) || 
+                                    record.purpose || 
+                                    DataProcessor.DEFAULT_PURPOSE;
+                
                 this.environments.set(envName, {
                     name: envName,
-                    purpose: record.purpose || DataProcessor.DEFAULT_PURPOSE,
+                    purpose: finalPurpose,
                     tasks: [],
                     color: this.getColorForEnvironment(envName)
                 });
+                
+                if (environmentPurposes.has(envName)) {
+                    console.log(`建立環境 "${envName}"，環境目的: "${finalPurpose}"`);
+                }
+            } else {
+                // 如果環境已存在，更新環境目的（使用收集到的最新非預設目的）
+                const environment = this.environments.get(envName);
+                if (environmentPurposes.has(envName) && 
+                    environment.purpose !== environmentPurposes.get(envName)) {
+                    const oldPurpose = environment.purpose;
+                    environment.purpose = environmentPurposes.get(envName);
+                    console.log(`更新環境 "${envName}" 的環境目的: "${oldPurpose}" -> "${environment.purpose}"`);
+                }
             }
 
             const environment = this.environments.get(envName);
@@ -165,6 +204,9 @@ class DataProcessor {
                     existingRange.endDate = new Date(Math.max(existingRange.endDate.getTime(), endDate.getTime()));
                     // 添加任務到列表
                     existingRange.tasks.push(task);
+                    // 更新環境資料（確保 environmentData 反映最新的環境目的）
+                    // 因為環境目的可能在後續記錄中被更新
+                    existingRange.environmentData = env;
                 } else {
                     // 建立新的範圍
                     const rangeData = {

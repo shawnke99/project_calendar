@@ -299,18 +299,28 @@ async function reloadExcelFile() {
  * 清除快取並重新載入頁面
  */
 function clearCacheAndReload() {
+    console.log('開始清除快取...');
+    
     // 清除 localStorage
     try {
+        const localStorageKeys = Object.keys(localStorage);
         localStorage.clear();
-        console.log('已清除 localStorage');
+        console.log('已清除 localStorage，共清除', localStorageKeys.length, '個項目:', localStorageKeys);
     } catch (e) {
         console.warn('清除 localStorage 失敗:', e);
     }
 
-    // 清除 sessionStorage
+    // 清除 sessionStorage（但保留 _cache_cleared_ 標記，避免影響 _nocache 處理）
     try {
-        sessionStorage.clear();
-        console.log('已清除 sessionStorage');
+        const sessionStorageKeys = Object.keys(sessionStorage);
+        // 只清除非 _cache_cleared_ 的項目
+        sessionStorageKeys.forEach(key => {
+            if (!key.startsWith('_cache_cleared_')) {
+                sessionStorage.removeItem(key);
+            }
+        });
+        console.log('已清除 sessionStorage（保留 _nocache 標記），共清除', 
+            sessionStorageKeys.filter(k => !k.startsWith('_cache_cleared_')).length, '個項目');
     } catch (e) {
         console.warn('清除 sessionStorage 失敗:', e);
     }
@@ -345,12 +355,27 @@ function clearCacheAndReload() {
     }
     expiresMeta.setAttribute('content', '0');
 
-    console.log('清除快取，重新載入頁面（時間戳:', timestamp, '）...');
+    console.log('清除快取完成，準備重新載入頁面（時間戳:', timestamp, '）...');
     
     // 使用時間戳重新載入，並更新所有 script 標籤的版本號
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('_nocache', timestamp);
-    window.location.href = currentUrl.toString();
+    console.log('重新載入 URL:', currentUrl.toString());
+    
+    // 強制清除所有快取並重新載入
+    // 使用 replace 確保瀏覽器不會使用快取
+    if ('caches' in window) {
+        caches.keys().then(names => {
+            names.forEach(name => {
+                caches.delete(name);
+                console.log('已清除快取:', name);
+            });
+        }).then(() => {
+            window.location.replace(currentUrl.toString());
+        });
+    } else {
+        window.location.replace(currentUrl.toString());
+    }
 }
 
 /**
