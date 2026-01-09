@@ -1595,173 +1595,109 @@ class Calendar {
                 taskCard.appendChild(taskTitle);
             }
             
-            // 創建資訊區塊
-            const createInfoRow = (label, value, color = null) => {
-                if (!value && value !== 0) return null;
-                
-                const row = document.createElement('div');
-                row.className = 'dropdown-info-row';
-                row.style.marginBottom = '4px';
-                
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'dropdown-label';
-                labelSpan.textContent = label + '：';
-                labelSpan.style.fontSize = '0.8em';
-                row.appendChild(labelSpan);
-                
-                const valueSpan = document.createElement('span');
-                valueSpan.className = 'dropdown-value';
-                valueSpan.textContent = value;
-                valueSpan.style.fontSize = '0.8em';
-                if (color) {
-                    valueSpan.style.color = color;
-                }
-                row.appendChild(valueSpan);
-                
-                return row;
-            };
-            
             // 顯示各欄位（基於當前任務）
             const taskInfoContainer = document.createElement('div');
             taskInfoContainer.className = 'task-card-info';
             
             // 開始日期
             if (hoverDropdownFields.startDate && taskRange.startDate) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('startDate'),
                     this.formatDate(taskRange.startDate),
-                    '#10b981'
+                    '#10b981',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 結束日期
             if (hoverDropdownFields.endDate && taskRange.endDate) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('endDate'),
                     this.formatDate(taskRange.endDate),
-                    '#ef4444'
+                    '#ef4444',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 營業日（從當前任務取得）
             if (hoverDropdownFields.businessDate && task.businessDate) {
-                let businessDateDisplay = '';
-                if (task.businessDate instanceof Date) {
-                    businessDateDisplay = this.formatDate(task.businessDate);
-                } else if (typeof task.businessDate === 'string') {
-                    try {
-                        businessDateDisplay = this.formatDate(new Date(task.businessDate));
-                    } catch {
-                        businessDateDisplay = task.businessDate;
-                    }
-                } else {
-                    businessDateDisplay = String(task.businessDate);
-                }
-                
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('businessDate'),
-                    businessDateDisplay,
-                    '#f59e0b'
+                    this.formatDateValue(task.businessDate),
+                    '#f59e0b',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 資料基準日（從當前任務取得）
             if (hoverDropdownFields.dataBaseDate && task.dataBaseDate) {
-                let dataBaseDateDisplay = '';
-                if (task.dataBaseDate instanceof Date) {
-                    dataBaseDateDisplay = this.formatDate(task.dataBaseDate);
-                } else if (typeof task.dataBaseDate === 'string') {
-                    try {
-                        dataBaseDateDisplay = this.formatDate(new Date(task.dataBaseDate));
-                    } catch {
-                        dataBaseDateDisplay = task.dataBaseDate;
-                    }
-                } else {
-                    dataBaseDateDisplay = String(task.dataBaseDate);
-                }
-                
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('dataBaseDate'),
-                    dataBaseDateDisplay,
-                    '#06b6d4'
+                    this.formatDateValue(task.dataBaseDate),
+                    '#06b6d4',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 京城封版日（從當前任務取得）
             if (hoverDropdownFields.kingdomFreezeDate && task.kingdomFreezeDate) {
-                let freezeDateDisplay = '';
-                if (task.kingdomFreezeDate instanceof Date) {
-                    freezeDateDisplay = this.formatDate(task.kingdomFreezeDate);
-                } else if (typeof task.kingdomFreezeDate === 'string') {
-                    try {
-                        freezeDateDisplay = this.formatDate(new Date(task.kingdomFreezeDate));
-                    } catch {
-                        freezeDateDisplay = task.kingdomFreezeDate;
-                    }
-                } else {
-                    freezeDateDisplay = String(task.kingdomFreezeDate);
-                }
-                
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('kingdomFreezeDate'),
-                    freezeDateDisplay,
-                    '#ec4899'
+                    this.formatDateValue(task.kingdomFreezeDate),
+                    '#ec4899',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 京城傳送中介檔日（從當前任務取得）
             if (hoverDropdownFields.kingdomTransferDate && task.kingdomTransferDate) {
-                let transferDateDisplay = '';
-                if (task.kingdomTransferDate instanceof Date) {
-                    transferDateDisplay = this.formatDate(task.kingdomTransferDate);
-                } else if (typeof task.kingdomTransferDate === 'string') {
-                    try {
-                        transferDateDisplay = this.formatDate(new Date(task.kingdomTransferDate));
-                    } catch {
-                        transferDateDisplay = task.kingdomTransferDate;
-                    }
-                } else {
-                    transferDateDisplay = String(task.kingdomTransferDate);
-                }
-                
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('kingdomTransferDate'),
-                    transferDateDisplay,
-                    '#8b5cf6'
+                    this.formatDateValue(task.kingdomTransferDate),
+                    '#8b5cf6',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 中介檔（從當前任務取得）
             if (hoverDropdownFields.intermediateFile && task.intermediateFile) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('intermediateFile'),
                     task.intermediateFile,
-                    '#6366f1'
+                    '#6366f1',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
             // 備注說明（從當前任務取得）
             if (hoverDropdownFields.remark && task.remark) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('remark'),
                     task.remark,
-                    '#6b7280'
+                    '#6b7280',
+                    { fontSize: '0.8em', addMargin: true }
                 );
                 if (row) taskInfoContainer.appendChild(row);
             }
             
-            taskCard.appendChild(taskInfoContainer);
-            horizontalContainer.appendChild(taskCard);
+            // 只有當任務卡片有內容時才添加
+            if (taskInfoContainer.children.length > 0 || (hoverDropdownFields.task && (task.content || task.task))) {
+                taskCard.appendChild(taskInfoContainer);
+                horizontalContainer.appendChild(taskCard);
+            }
         });
         
-        dropdown.appendChild(horizontalContainer);
+        // 只有當橫向容器有內容時才添加到下拉層
+        if (horizontalContainer.children.length > 0) {
+            dropdown.appendChild(horizontalContainer);
+        }
     }
     
     /**
@@ -1771,28 +1707,6 @@ class Calendar {
      * @param {Object} hoverDropdownFields - 欄位顯示配置
      */
     createVerticalTaskView(dropdown, taskRange, hoverDropdownFields) {
-        // 創建資訊區塊
-        const createInfoRow = (label, value, color = null) => {
-            if (!value && value !== 0) return null;
-            
-            const row = document.createElement('div');
-            row.className = 'dropdown-info-row';
-            
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'dropdown-label';
-            labelSpan.textContent = label + '：';
-            row.appendChild(labelSpan);
-            
-            const valueSpan = document.createElement('span');
-            valueSpan.className = 'dropdown-value';
-            valueSpan.textContent = value;
-            if (color) {
-                valueSpan.style.color = color;
-            }
-            row.appendChild(valueSpan);
-            
-            return row;
-        };
         
         // 顯示工作項目
         if (hoverDropdownFields.task && taskRange.tasks && taskRange.tasks.length > 0) {
@@ -1836,7 +1750,7 @@ class Calendar {
         
         // 顯示開始日期
         if (hoverDropdownFields.startDate && taskRange.startDate) {
-            const row = createInfoRow(
+            const row = this.createDropdownInfoRow(
                 this.getFieldDisplayName('startDate'),
                 this.formatDate(taskRange.startDate),
                 '#10b981'
@@ -1846,7 +1760,7 @@ class Calendar {
         
         // 顯示結束日期
         if (hoverDropdownFields.endDate && taskRange.endDate) {
-            const row = createInfoRow(
+            const row = this.createDropdownInfoRow(
                 this.getFieldDisplayName('endDate'),
                 this.formatDate(taskRange.endDate),
                 '#ef4444'
@@ -1868,20 +1782,9 @@ class Calendar {
                 });
             
             if (businessDates.length > 0) {
-                const displayDates = businessDates.map(date => {
-                    if (date instanceof Date) {
-                        return this.formatDate(date);
-                    } else if (typeof date === 'string') {
-                        try {
-                            return this.formatDate(new Date(date));
-                        } catch {
-                            return date;
-                        }
-                    }
-                    return String(date);
-                }).join('、');
+                const displayDates = businessDates.map(date => this.formatDateValue(date)).join('、');
                 
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('businessDate'),
                     displayDates,
                     '#f59e0b'
@@ -1904,20 +1807,9 @@ class Calendar {
                 });
             
             if (dataBaseDates.length > 0) {
-                const displayDates = dataBaseDates.map(date => {
-                    if (date instanceof Date) {
-                        return this.formatDate(date);
-                    } else if (typeof date === 'string') {
-                        try {
-                            return this.formatDate(new Date(date));
-                        } catch {
-                            return date;
-                        }
-                    }
-                    return String(date);
-                }).join('、');
+                const displayDates = dataBaseDates.map(date => this.formatDateValue(date)).join('、');
                 
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('dataBaseDate'),
                     displayDates,
                     '#06b6d4'
@@ -1940,23 +1832,12 @@ class Calendar {
                 });
             
             if (freezeDates.length > 0) {
-                const displayDates = freezeDates.map(date => {
-                    if (date instanceof Date) {
-                        return this.formatDate(date);
-                    } else if (typeof date === 'string') {
-                        try {
-                            return this.formatDate(new Date(date));
-                        } catch {
-                            return date;
-                        }
-                    }
-                    return String(date);
-                }).join('、');
+                const displayDates = freezeDates.map(date => this.formatDateValue(date)).join('、');
                 
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('kingdomFreezeDate'),
                     displayDates,
-                    '#06b6d4'
+                    '#ec4899'
                 );
                 if (row) dropdown.appendChild(row);
             }
@@ -1976,23 +1857,12 @@ class Calendar {
                 });
             
             if (transferDates.length > 0) {
-                const displayDates = transferDates.map(date => {
-                    if (date instanceof Date) {
-                        return this.formatDate(date);
-                    } else if (typeof date === 'string') {
-                        try {
-                            return this.formatDate(new Date(date));
-                        } catch {
-                            return date;
-                        }
-                    }
-                    return String(date);
-                }).join('、');
+                const displayDates = transferDates.map(date => this.formatDateValue(date)).join('、');
                 
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('kingdomTransferDate'),
                     displayDates,
-                    '#06b6d4'
+                    '#8b5cf6'
                 );
                 if (row) dropdown.appendChild(row);
             }
@@ -2006,10 +1876,10 @@ class Calendar {
                 .filter((value, index, self) => self.indexOf(value) === index);
             
             if (files.length > 0) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('intermediateFile'),
                     files.join('、'),
-                    '#64748b'
+                    '#6366f1'
                 );
                 if (row) dropdown.appendChild(row);
             }
@@ -2023,10 +1893,10 @@ class Calendar {
                 .filter((value, index, self) => self.indexOf(value) === index);
             
             if (remarks.length > 0) {
-                const row = createInfoRow(
+                const row = this.createDropdownInfoRow(
                     this.getFieldDisplayName('remark'),
                     remarks.join('、'),
-                    '#64748b'
+                    '#6b7280'
                 );
                 if (row) dropdown.appendChild(row);
             }
@@ -2265,6 +2135,67 @@ class Calendar {
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * 格式化日期值為顯示字串（處理各種日期格式）
+     * @param {Date|string|any} dateValue - 日期值
+     * @returns {string} 格式化後的日期字串
+     */
+    formatDateValue(dateValue) {
+        if (!dateValue) return '';
+        
+        if (dateValue instanceof Date) {
+            return this.formatDate(dateValue);
+        } else if (typeof dateValue === 'string') {
+            try {
+                return this.formatDate(new Date(dateValue));
+            } catch {
+                return dateValue;
+            }
+        } else {
+            return String(dateValue);
+        }
+    }
+
+    /**
+     * 創建下拉層資訊行元素
+     * @param {string} label - 標籤文字
+     * @param {string} value - 值文字
+     * @param {string|null} color - 顏色（可選）
+     * @param {Object} options - 選項（可選）
+     * @param {string} options.fontSize - 字體大小（預設 '0.85em'）
+     * @param {boolean} options.addMargin - 是否添加底部邊距（預設 false）
+     * @returns {HTMLElement|null} 資訊行元素，如果值為空則返回 null
+     */
+    createDropdownInfoRow(label, value, color = null, options = {}) {
+        if (!value && value !== 0) return null;
+        
+        const fontSize = options.fontSize || '0.85em';
+        const addMargin = options.addMargin || false;
+        
+        const row = document.createElement('div');
+        row.className = 'dropdown-info-row';
+        if (addMargin) {
+            row.style.marginBottom = '4px';
+        }
+        
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'dropdown-label';
+        labelSpan.textContent = label + '：';
+        labelSpan.style.fontSize = fontSize;
+        row.appendChild(labelSpan);
+        
+        const valueSpan = document.createElement('span');
+        valueSpan.className = 'dropdown-value';
+        valueSpan.textContent = value;
+        valueSpan.style.fontSize = fontSize;
+        if (color) {
+            valueSpan.style.color = color;
+        }
+        row.appendChild(valueSpan);
+        
+        return row;
     }
 
     /**
