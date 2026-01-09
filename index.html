@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專案行事曆 - 任務顯示管理</title>
+    <link rel="stylesheet" href="css/calendar.css?v=2">
+</head>
+<body>
+    <div class="container">
+        <!-- 標題列 -->
+        <header class="header">
+            <h1>專案行事曆</h1>
+            <div class="header-controls">
+                <button id="prevMonth" class="btn btn-secondary">◀ 上個月</button>
+                <span id="currentMonth" class="month-display">2024年1月</span>
+                <button id="nextMonth" class="btn btn-secondary">下個月 ▶</button>
+                <button id="reloadExcel" class="btn btn-reload" title="重新讀取 Excel 檔案">📄 重新讀取</button>
+                <button id="clearCache" class="btn btn-cache" title="清除快取並重新載入">🔄 清除快取</button>
+            </div>
+        </header>
+
+        <!-- 環境篩選器 -->
+        <div class="filter-section">
+            <h3>環境篩選</h3>
+            <div id="environmentFilters" class="filter-buttons">
+                <button class="filter-btn active" data-env="all">全部顯示</button>
+            </div>
+        </div>
+
+        <!-- 月曆主體 -->
+        <div class="calendar-wrapper">
+            <div class="calendar-header">
+                <div class="day-header">日</div>
+                <div class="day-header">一</div>
+                <div class="day-header">二</div>
+                <div class="day-header">三</div>
+                <div class="day-header">四</div>
+                <div class="day-header">五</div>
+                <div class="day-header">六</div>
+            </div>
+            <div id="calendarGrid" class="calendar-grid"></div>
+        </div>
+
+        <!-- 圖例 -->
+        <div class="legend-section">
+            <h3 class="legend-title">
+                <span class="legend-icon">📋</span>
+                圖例說明
+            </h3>
+            <div id="legend" class="legend-items"></div>
+        </div>
+
+        <!-- 載入狀態 -->
+        <div id="loadingIndicator" class="loading">
+            <div class="spinner"></div>
+            <p>載入中...</p>
+        </div>
+
+        <!-- 錯誤訊息 -->
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+    </div>
+
+    <!-- 任務詳情彈窗 -->
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2 id="modalTitle">任務詳情</h2>
+            <div id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- 引入函式庫 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- 引入配置檔案（必須最先載入） -->
+    <script src="js/config.js?v=2"></script>
+    <!-- 引入自訂模組 -->
+    <script src="js/excel-reader.js?v=24"></script>
+    <script src="js/data-processor.js?v=24"></script>
+    <script src="js/calendar.js?v=24"></script>
+    <script src="js/main.js?v=23"></script>
+</body>
+</html>
+

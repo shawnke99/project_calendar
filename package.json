@@ -1,0 +1,20 @@
+{
+  "name": "project-calendar",
+  "version": "1.0.0",
+  "description": "專案行事曆 - 任務顯示管理系統",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server . -p 8080 -o",
+    "dev": "npx http-server . -p 8080 -o --cors"
+  },
+  "keywords": [
+    "calendar",
+    "project-management",
+    "excel"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
+
