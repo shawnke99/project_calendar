@@ -104,7 +104,7 @@ calendar: {
     // 預設顯示日期區間
     defaultYear: null,        // 預設年份（null = 自動使用資料中的最早年份）
     defaultMonth: null,       // 預設月份（0-11，null = 自動使用資料中的最早月份）
-    defaultDate: null         // 預設日期（Date物件或字串，例如 '2024-01-01'）
+    defaultDate: null         // 預設日期（Date物件或字串，例如 '2026-01-01'）
 }
 ```
 
@@ -178,13 +178,14 @@ taskDisplay: {
     taskBarFieldColors: {
         purpose: '#6366f1',     // 紫色
         businessDate: '#f59e0b', // 橙色
+        task: '#8b5cf6',        // 紫色（工作項目）
         // ... 其他欄位顏色
     }
 }
 ```
 
 **說明**：
-- `taskBarFields`：定義任務條上顯示的欄位預設值，用戶可以通過「顯示設定」面板修改
+- `taskBarFields`：定義任務條上顯示的欄位預設值，用戶可以通過「顯示設定」面板修改。要顯示工作項目，將 `task` 設為 `true` 即可。
 - `taskBarFieldColors`：定義各欄位在圖例中顯示的顏色
 
 ### 10. 欄位顯示名稱映射
@@ -245,14 +246,14 @@ nonWorkingDays: {
 **方法 1：使用 defaultDate**
 ```javascript
 calendar: {
-    defaultDate: '2024-01-01'  // 直接指定日期
+    defaultDate: '2026-01-01'  // 直接指定日期
 }
 ```
 
 **方法 2：使用 defaultYear 和 defaultMonth**
 ```javascript
 calendar: {
-    defaultYear: 2024,
+    defaultYear: 2026,
     defaultMonth: 0  // 0 = 1月, 11 = 12月
 }
 ```

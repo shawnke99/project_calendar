@@ -75,18 +75,23 @@ const SystemConfig = {
 
     // 月曆顯示設定
     calendar: {
-        maxDisplayTasks: 3,           // 每個日期格子最多顯示的任務數
-        maxTasksInBlock: 3,            // 每個環境區塊最多顯示的工作項目數
+        // 任務數量限制設定
+        enableTaskLimits: true,        // 是否啟用任務數量限制（開關參數）
+        maxDisplayTasks: 3,           // 每個日期格子最多顯示的環境+梯次區塊數（當 enableTaskLimits 為 true 時生效）
+        maxTasksInBlock: 3,            // 每個環境+梯次區塊中最多顯示的工作項目數（當 enableTaskLimits 為 true 時生效）
         dayMinHeight: 150,             // 日期格子的最小高度
         taskBarHeight: 25,             // 跨日期任務條的高度
         gridGap: 2,                    // 格子間距（px）
+        // 響應式設定
+        autoResize: true,              // 是否在視窗大小改變時自動重新渲染日曆
+        resizeDebounceDelay: 300,      // 視窗大小改變時的防抖延遲（毫秒）
         // 多月份顯示設定
         monthsToDisplay: 2,            // 同時顯示的月份數量（1-12，預設為 1，多月份時會上下排列）
         // 預設顯示日期區間（如果資料中沒有日期，或需要指定初始顯示月份）
         defaultYear: null,             // 預設年份（null = 自動使用資料中的最早年份）
         defaultMonth: null,            // 預設月份（0-11，null = 自動使用資料中的最早月份）
         // 或使用固定日期
-        defaultDate: null              // 預設日期（Date物件或字串，例如 '2024-01-01'，null = 自動計算）
+        defaultDate: null              // 預設日期（Date物件或字串，例如 '2026-01-01'，null = 自動計算）
     },
 
     // 圖例顯示設定

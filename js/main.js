@@ -255,6 +255,28 @@ function setupEventListeners() {
     if (typeof setupSettingsPanel === 'function') {
         setupSettingsPanel();
     }
+
+    // 視窗大小改變時自動重新整理日曆（使用防抖避免過於頻繁的重新渲染）
+    const autoResize = SystemConfig.calendar?.autoResize !== false;
+    const resizeDebounceDelay = SystemConfig.calendar?.resizeDebounceDelay || 300;
+    
+    if (autoResize) {
+        let resizeTimer = null;
+        window.addEventListener('resize', () => {
+            // 清除之前的計時器
+            if (resizeTimer) {
+                clearTimeout(resizeTimer);
+            }
+            
+            // 設置新的計時器（延遲後執行）
+            resizeTimer = setTimeout(() => {
+                if (calendar) {
+                    Logger.debug('視窗大小改變，重新渲染日曆以確保內容可讀性');
+                    calendar.render();
+                }
+            }, resizeDebounceDelay);
+        });
+    }
 }
 
 /**

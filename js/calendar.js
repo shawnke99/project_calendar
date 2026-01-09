@@ -416,34 +416,38 @@ class Calendar {
             });
         }
 
-        // 應用 maxDisplayTasks 限制（跨日期任務條的總數）
-        const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
-        if (maxDisplayTasks && maxDisplayTasks > 0) {
-            // 按日期分組，限制每個日期顯示的任務條數量
-            const tasksByDate = new Map();
-            monthTaskRanges.forEach(taskRange => {
-                if (!taskRange.dateRange || taskRange.dateRange.length === 0) return;
-                taskRange.dateRange.forEach(date => {
-                    const dateKey = this.dataProcessor.getDateKey(date);
-                    if (!tasksByDate.has(dateKey)) {
-                        tasksByDate.set(dateKey, []);
-                    }
-                    if (!tasksByDate.get(dateKey).includes(taskRange.rangeId)) {
-                        tasksByDate.get(dateKey).push(taskRange.rangeId);
-                    }
+        // 應用任務數量限制（如果啟用）
+        const enableTaskLimits = this.config.calendar?.enableTaskLimits !== false;
+        if (enableTaskLimits) {
+            // 應用 maxDisplayTasks 限制（跨日期任務條的總數）
+            const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
+            if (maxDisplayTasks && maxDisplayTasks > 0) {
+                // 按日期分組，限制每個日期顯示的任務條數量
+                const tasksByDate = new Map();
+                monthTaskRanges.forEach(taskRange => {
+                    if (!taskRange.dateRange || taskRange.dateRange.length === 0) return;
+                    taskRange.dateRange.forEach(date => {
+                        const dateKey = this.dataProcessor.getDateKey(date);
+                        if (!tasksByDate.has(dateKey)) {
+                            tasksByDate.set(dateKey, []);
+                        }
+                        if (!tasksByDate.get(dateKey).includes(taskRange.rangeId)) {
+                            tasksByDate.get(dateKey).push(taskRange.rangeId);
+                        }
+                    });
                 });
-            });
-            
-            // 過濾出符合限制的任務範圍
-            const allowedRangeIds = new Set();
-            tasksByDate.forEach((rangeIds, dateKey) => {
-                const limitedRangeIds = rangeIds.slice(0, maxDisplayTasks);
-                limitedRangeIds.forEach(rangeId => allowedRangeIds.add(rangeId));
-            });
-            
-            monthTaskRanges = monthTaskRanges.filter(taskRange => {
-                return allowedRangeIds.has(taskRange.rangeId);
-            });
+                
+                // 過濾出符合限制的任務範圍
+                const allowedRangeIds = new Set();
+                tasksByDate.forEach((rangeIds, dateKey) => {
+                    const limitedRangeIds = rangeIds.slice(0, maxDisplayTasks);
+                    limitedRangeIds.forEach(rangeId => allowedRangeIds.add(rangeId));
+                });
+                
+                monthTaskRanges = monthTaskRanges.filter(taskRange => {
+                    return allowedRangeIds.has(taskRange.rangeId);
+                });
+            }
         }
 
         monthTaskRanges.forEach(taskRange => {
@@ -911,10 +915,46 @@ class Calendar {
                     }
                     break;
                 case 'task':
-                    // 顯示第一個任務的內容
+                    // 顯示工作項目（工作內容）- 使用現代化的標籤樣式
                     if (taskRange.tasks && taskRange.tasks.length > 0) {
-                        displayText = taskRange.tasks[0].content || '';
-                        badgeColor = '#8b5cf6'; // 紫色
+                        const taskContents = taskRange.tasks
+                            .map(task => task.content || task.task || '')
+                            .filter(content => content && content.trim() !== '')
+                            .filter((value, index, self) => self.indexOf(value) === index); // 去重
+                        
+                        if (taskContents.length > 0) {
+                            // 創建工作項目容器（允許換行）
+                            const taskContainer = document.createElement('span');
+                            taskContainer.className = 'task-items-container';
+                            taskContainer.style.display = 'inline-flex';
+                            taskContainer.style.flexWrap = 'wrap';
+                            taskContainer.style.gap = '3px';
+                            taskContainer.style.marginLeft = '4px';
+                            taskContainer.style.alignItems = 'center';
+                            
+                            // 為每個工作項目創建小標籤
+                            taskContents.forEach((content, index) => {
+                                const taskChip = document.createElement('span');
+                                taskChip.className = 'task-item-chip';
+                                taskChip.textContent = content;
+                                taskChip.style.backgroundColor = '#8b5cf6';
+                                taskChip.style.color = '#ffffff';
+                                taskChip.style.padding = '2px 6px';
+                                taskChip.style.borderRadius = '10px';
+                                taskChip.style.fontSize = '0.6em';
+                                taskChip.style.fontWeight = '500';
+                                taskChip.style.whiteSpace = 'nowrap';
+                                taskChip.style.maxWidth = '200px';
+                                taskChip.style.overflow = 'hidden';
+                                taskChip.style.textOverflow = 'ellipsis';
+                                taskChip.title = content; // 懸停顯示完整內容
+                                taskContainer.appendChild(taskChip);
+                            });
+                            
+                            // 將容器添加到任務條
+                            taskBar.appendChild(taskContainer);
+                            return; // 跳過後續的 badge 創建邏輯
+                        }
                     }
                     break;
                 case 'startDate':
@@ -1586,6 +1626,47 @@ class Calendar {
                     taskItem.appendChild(batch);
                 }
                 
+                // 顯示工作項目（工作內容）- 使用現代化的標籤樣式
+                if (taskBarFields.task && taskRange.tasks && taskRange.tasks.length > 0) {
+                    const taskContents = taskRange.tasks
+                        .map(task => task.content || task.task || '')
+                        .filter(content => content && content.trim() !== '')
+                        .filter((value, index, self) => self.indexOf(value) === index); // 去重
+                    
+                    if (taskContents.length > 0) {
+                        // 創建工作項目容器（允許換行）
+                        const taskContainer = document.createElement('div');
+                        taskContainer.className = 'task-items-container';
+                        taskContainer.style.display = 'flex';
+                        taskContainer.style.flexWrap = 'wrap';
+                        taskContainer.style.gap = '4px';
+                        taskContainer.style.marginTop = '4px';
+                        taskContainer.style.alignItems = 'center';
+                        
+                        // 為每個工作項目創建小標籤
+                        taskContents.forEach((content) => {
+                            const taskChip = document.createElement('span');
+                            taskChip.className = 'task-item-chip';
+                            taskChip.textContent = content;
+                            taskChip.style.backgroundColor = '#8b5cf6';
+                            taskChip.style.color = '#ffffff';
+                            taskChip.style.padding = '3px 8px';
+                            taskChip.style.borderRadius = '12px';
+                            taskChip.style.fontSize = '0.7em';
+                            taskChip.style.fontWeight = '500';
+                            taskChip.style.whiteSpace = 'nowrap';
+                            taskChip.style.maxWidth = '100%';
+                            taskChip.style.overflow = 'hidden';
+                            taskChip.style.textOverflow = 'ellipsis';
+                            taskChip.style.display = 'inline-block';
+                            taskChip.title = content; // 懸停顯示完整內容
+                            taskContainer.appendChild(taskChip);
+                        });
+                        
+                        taskItem.appendChild(taskContainer);
+                    }
+                }
+                
                 // 點擊事件
                 taskItem.addEventListener('click', (e) => {
                     e.stopPropagation();
@@ -1664,38 +1745,55 @@ class Calendar {
                 });
             });
 
-            // 應用 maxTasksInBlock 限制（按環境分組）
-            const maxTasksInBlock = this.config.calendar?.maxTasksInBlock;
-            if (maxTasksInBlock && maxTasksInBlock > 0) {
-                const tasksByEnvironment = new Map();
-                tasksForThisDate.forEach(taskRange => {
-                    const envName = taskRange.environment;
-                    if (!tasksByEnvironment.has(envName)) {
-                        tasksByEnvironment.set(envName, []);
-                    }
-                    tasksByEnvironment.get(envName).push(taskRange);
-                });
-                
-                // 限制每個環境的任務數
-                tasksForThisDate = [];
-                tasksByEnvironment.forEach((envTasks, envName) => {
-                    const limitedTasks = envTasks.slice(0, maxTasksInBlock);
-                    tasksForThisDate.push(...limitedTasks);
-                });
-            }
-
-            // 應用 maxDisplayTasks 限制（總任務數）
-            const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
-            if (maxDisplayTasks && maxDisplayTasks > 0) {
-                tasksForThisDate = tasksForThisDate.slice(0, maxDisplayTasks);
-            }
-
-            // 為每個任務創建顯示元素
+            // 按「環境+梯次」分組，合併同一組的所有工作項目
+            const tasksByEnvBatch = new Map();
             tasksForThisDate.forEach(taskRange => {
+                const groupKey = `${taskRange.environment}_${taskRange.batch || 'default'}`;
+                if (!tasksByEnvBatch.has(groupKey)) {
+                    tasksByEnvBatch.set(groupKey, {
+                        environment: taskRange.environment,
+                        batch: taskRange.batch,
+                        environmentData: taskRange.environmentData,
+                        batchColor: taskRange.batchColor,
+                        allTasks: [] // 合併所有工作項目
+                    });
+                }
+                // 合併該 taskRange 的所有工作項目
+                if (taskRange.tasks && taskRange.tasks.length > 0) {
+                    tasksByEnvBatch.get(groupKey).allTasks.push(...taskRange.tasks);
+                }
+            });
+
+            // 應用任務數量限制（如果啟用）
+            const enableTaskLimits = this.config.calendar?.enableTaskLimits !== false;
+            let groupedTasks = Array.from(tasksByEnvBatch.values());
+            
+            if (enableTaskLimits) {
+                // 應用 maxTasksInBlock 限制（每個環境+梯次區塊最多顯示的工作項目數）
+                const maxTasksInBlock = this.config.calendar?.maxTasksInBlock;
+                if (maxTasksInBlock && maxTasksInBlock > 0) {
+                    groupedTasks = groupedTasks.map(group => {
+                        const limitedTasks = group.allTasks.slice(0, maxTasksInBlock);
+                        return {
+                            ...group,
+                            allTasks: limitedTasks
+                        };
+                    });
+                }
+
+                // 應用 maxDisplayTasks 限制（總區塊數）
+                const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
+                if (maxDisplayTasks && maxDisplayTasks > 0) {
+                    groupedTasks = groupedTasks.slice(0, maxDisplayTasks);
+                }
+            }
+
+            // 為每個環境+梯次組創建顯示元素
+            groupedTasks.forEach(group => {
                 const taskItem = document.createElement('div');
                 taskItem.className = 'day-task-item';
-                taskItem.style.backgroundColor = this.addAlpha(taskRange.environmentData.color, 0.15);
-                taskItem.style.borderLeft = `3px solid ${taskRange.environmentData.color}`;
+                taskItem.style.backgroundColor = this.addAlpha(group.environmentData.color, 0.15);
+                taskItem.style.borderLeft = `3px solid ${group.environmentData.color}`;
                 taskItem.style.padding = '4px 6px';
                 taskItem.style.marginBottom = '4px';
                 taskItem.style.borderRadius = '3px';
@@ -1704,35 +1802,84 @@ class Calendar {
                 
                 // 顯示環境名稱
                 const envName = document.createElement('span');
-                envName.textContent = taskRange.environment;
+                envName.textContent = group.environment;
                 envName.style.fontWeight = '600';
-                envName.style.color = taskRange.environmentData.color;
+                envName.style.color = group.environmentData.color;
                 envName.style.marginRight = '6px';
                 taskItem.appendChild(envName);
                 
                 // 顯示其他資訊（如果配置了）
                 const taskBarFields = this.config.taskDisplay?.taskBarFields || {};
-                if (taskBarFields.batch && taskRange.batch) {
+                if (taskBarFields.batch && group.batch) {
                     const batch = document.createElement('span');
-                    batch.textContent = taskRange.batch;
+                    batch.textContent = group.batch;
                     batch.style.marginRight = '4px';
                     batch.style.fontSize = '0.85em';
                     taskItem.appendChild(batch);
                 }
                 
-                // 點擊事件
+                // 顯示工作項目（工作內容）- 顯示該環境+梯次下的所有工作項目，使用現代化的標籤樣式
+                if (group.allTasks && group.allTasks.length > 0) {
+                    const taskContents = group.allTasks
+                        .map(task => task.content || task.task || '')
+                        .filter(content => content && content.trim() !== '')
+                        .filter((value, index, self) => self.indexOf(value) === index); // 去重
+                    
+                    if (taskContents.length > 0) {
+                        // 創建工作項目容器（允許換行）
+                        const taskContainer = document.createElement('div');
+                        taskContainer.className = 'task-items-container';
+                        taskContainer.style.display = 'flex';
+                        taskContainer.style.flexWrap = 'wrap';
+                        taskContainer.style.gap = '4px';
+                        taskContainer.style.marginTop = '4px';
+                        taskContainer.style.alignItems = 'center';
+                        
+                        // 為每個工作項目創建小標籤
+                        taskContents.forEach((content) => {
+                            const taskChip = document.createElement('span');
+                            taskChip.className = 'task-item-chip';
+                            taskChip.textContent = content;
+                            taskChip.style.backgroundColor = '#8b5cf6';
+                            taskChip.style.color = '#ffffff';
+                            taskChip.style.padding = '3px 8px';
+                            taskChip.style.borderRadius = '12px';
+                            taskChip.style.fontSize = '0.7em';
+                            taskChip.style.fontWeight = '500';
+                            taskChip.style.whiteSpace = 'nowrap';
+                            taskChip.style.maxWidth = '100%';
+                            taskChip.style.overflow = 'hidden';
+                            taskChip.style.textOverflow = 'ellipsis';
+                            taskChip.style.display = 'inline-block';
+                            taskChip.title = content; // 懸停顯示完整內容
+                            taskContainer.appendChild(taskChip);
+                        });
+                        
+                        taskItem.appendChild(taskContainer);
+                    }
+                }
+                
+                // 點擊事件 - 使用合併後的任務資料
                 taskItem.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const tasks = taskRange.tasks.map(task => ({
-                        environment: taskRange.environment,
-                        environmentData: taskRange.environmentData,
+                    // 建立一個臨時的 taskRange 物件用於顯示詳情
+                    const tempTaskRange = {
+                        environment: group.environment,
+                        batch: group.batch,
+                        environmentData: group.environmentData,
+                        batchColor: group.batchColor,
+                        tasks: group.allTasks
+                    };
+                    const tasks = group.allTasks.map(task => ({
+                        environment: group.environment,
+                        environmentData: group.environmentData,
                         task: task,
-                        batch: taskRange.batch,
-                        batchColor: taskRange.batchColor,
-                        status: taskRange.status,
-                        statusColor: taskRange.statusColor
+                        batch: group.batch,
+                        batchColor: group.batchColor,
+                        status: task.status || '未指定',
+                        statusColor: this.dataProcessor.getColorForStatus(task.status || '未指定')
                     }));
-                    this.showRangeDetails(taskRange, tasks);
+                    this.showRangeDetails(tempTaskRange, tasks);
                 });
                 
                 tasksContainer.appendChild(taskItem);
