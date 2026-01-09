@@ -11,21 +11,34 @@
 #### 環境顏色調色盤
 ```javascript
 environmentColors: [
-    '#dc2626', '#ef4444', '#f87171', '#fca5a5',  // 紅色系
-    '#1e3a8a', '#1e40af', '#3b82f6', '#60a5fa',  // 藍色系
-    ...
+    '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d',  // 深紅色系
+    '#ef4444', '#f87171', '#fca5a5', '#fee2e2'   // 亮紅色系
 ]
 ```
 - **說明**：環境的顏色列表，系統會依序分配
 - **擴展**：可以添加更多顏色以支援更多環境
 - **建議**：使用對比明顯的顏色，避免相近顏色
 
+#### 特定環境固定顏色
+```javascript
+environmentSpecificColors: {
+    'IT準備': '#16537e',
+    '平測切轉環境': '#10b981',
+    '資轉驗證環境': '#dc2626'
+}
+```
+- **說明**：特定環境的固定顏色（優先使用）
+- **用途**：確保重要環境使用固定顏色，便於識別
+
 #### 梯次顏色調色盤
 ```javascript
 batchColors: [
-    '#dc2626', '#ef4444', '#f87171', '#fca5a5',  // 紅色系
-    '#1e3a8a', '#1e40af', '#3b82f6', '#60a5fa',  // 藍色系
-    ...
+    '#dbeafe',  // 淺藍色 - 第一梯次
+    '#93c5fd',  // 中淺藍色 - 第二梯次
+    '#3b82f6',  // 中藍色 - 第三梯次
+    '#1e40af',  // 深藍色 - 第四梯次
+    '#c4b5fd',  // 淺紫色 - 第五梯次
+    '#7c3aed'   // 深紫色 - 第六梯次
 ]
 ```
 - **說明**：執行梯次的顏色列表
@@ -34,9 +47,10 @@ batchColors: [
 #### 狀態顏色對應
 ```javascript
 statusColors: {
-    '進行中': '#1e40af',
-    '待開始': '#dc2626',
-    ...
+    '未開始': '#9ca3af',  // 灰色
+    '準備中': '#3b82f6',  // 藍色
+    '驗證中': '#ef4444',  // 紅色
+    '已完成': '#10b981'   // 綠色
 }
 ```
 - **說明**：狀態與顏色的固定對應關係
@@ -47,9 +61,10 @@ statusColors: {
 
 ```javascript
 statusPriority: {
-    '進行中': 1,
-    '測試中': 2,
-    ...
+    '未開始': 1,
+    '準備中': 2,
+    '驗證中': 3,
+    '已完成': 4
 }
 ```
 - **說明**：用於任務排序，數字越小優先級越高
@@ -69,9 +84,13 @@ fieldMapping: {
 - **匹配順序**：完全匹配 > 部分匹配
 
 **支援的欄位**：
-- **必填欄位**：environment（環境名稱）、purpose（環境目的）、task（工作內容）、startDate（驗證起日）
-- **選填欄位**：endDate（驗證迄日）、batch（執行梯次）、status（狀態）
-- **擴展欄位**：intermediateFile（中介檔）、dataBaseDate（資料基準日）、kingdomFreezeDate（京城封版日）、kingdomTransferDate（京城傳送中介檔日）、remark（備注說明）
+- **必填欄位**：environment（環境名稱）、task（工作內容）、startDate（驗證起日）
+- **選填欄位**：purpose（環境目的）、endDate（驗證迄日）、batch（執行梯次）、status（狀態）
+- **擴展欄位**：businessDate（營業日）、intermediateFile（中介檔）、dataBaseDate（資料基準日）、kingdomFreezeDate（京城封版日）、kingdomTransferDate（京城傳送中介檔日）、remark（備注說明）
+
+**重要說明**：
+- 環境目的會根據「環境名稱 + 執行梯次」來決定，同一環境的不同梯次可以有不同的目的
+- 如果 Excel 中沒有「環境目的」欄位，系統會使用「未指定目的」作為預設值
 
 ### 4. 月曆顯示設定
 
@@ -79,7 +98,7 @@ fieldMapping: {
 calendar: {
     maxDisplayTasks: 3,        // 每個日期格子最多顯示的任務數
     maxTasksInBlock: 2,       // 每個環境區塊最多顯示的工作項目數
-    dayMinHeight: 120,        // 日期格子的最小高度（px）
+    dayMinHeight: 130,        // 日期格子的最小高度（px）
     taskBarHeight: 18,        // 跨日期任務條的高度（px）
     gridGap: 2,               // 格子間距（px）
     // 預設顯示日期區間
@@ -128,7 +147,7 @@ dateFormat: {
 ```javascript
 colorStrategy: {
     mode: 'repeat',            // 'repeat'（重複使用）或 'generate'（動態生成）
-    consistent: true           // 是否為相同名稱使用相同顏色
+    consistent: true            // 是否為相同名稱使用相同顏色
 }
 ```
 
@@ -142,11 +161,48 @@ colorStrategy: {
 taskDisplay: {
     showSpanningTasks: true,   // 是否顯示跨日期任務條
     showPlaceholders: true,    // 是否在非開始日期顯示佔位符
-    hoverEffect: true          // 任務條懸停效果
+    hoverEffect: true,         // 任務條懸停效果
+    // 任務條上顯示的欄位（預設值）
+    taskBarFields: {
+        environment: true,      // 環境名稱（建議保持為 true）
+        batch: true,            // 執行梯次
+        status: true,           // 狀態
+        purpose: true,          // 環境目的
+        businessDate: false,    // 營業日
+        task: false,            // 工作內容
+        startDate: false,       // 開始日期
+        endDate: false,         // 結束日期
+        // ... 其他欄位
+    },
+    // 任務條欄位顏色配置（用於圖例說明）
+    taskBarFieldColors: {
+        purpose: '#6366f1',     // 紫色
+        businessDate: '#f59e0b', // 橙色
+        // ... 其他欄位顏色
+    }
 }
 ```
 
-### 10. 效能設定
+**說明**：
+- `taskBarFields`：定義任務條上顯示的欄位預設值，用戶可以通過「顯示設定」面板修改
+- `taskBarFieldColors`：定義各欄位在圖例中顯示的顏色
+
+### 10. 欄位顯示名稱映射
+
+```javascript
+fieldDisplayNames: {
+    environment: '環境名稱',
+    purpose: '環境目的',
+    batch: '執行梯次',
+    status: '狀態',
+    businessDate: '營業日',
+    // ... 其他欄位
+}
+```
+- **說明**：用於「顯示設定」面板中顯示的欄位名稱
+- **用途**：提供用戶友好的欄位名稱顯示
+
+### 11. 效能設定
 
 ```javascript
 performance: {
@@ -156,13 +212,27 @@ performance: {
 }
 ```
 
-### 11. 除錯設定
+### 12. 除錯設定
 
 ```javascript
 debug: {
     enabled: false,            // 是否啟用除錯模式
     logLevel: 'info',          // 日誌級別
     showConsoleLogs: false     // 是否顯示控制台日誌
+}
+```
+
+### 13. 非工作日設定
+
+```javascript
+nonWorkingDays: {
+    enabled: true,             // 是否啟用非工作日標記
+    backgroundColor: '#f5f5f5', // 非工作日背景顏色
+    includeWeekends: true,     // 週末是否視為非工作日
+    customDays: [              // 自訂非工作日列表
+        { date: '2026-01-01', description: '元旦' },
+        // ... 其他假日
+    ]
 }
 ```
 
@@ -259,9 +329,25 @@ legend: {
 }
 ```
 
+### 場景 7：調整任務條顯示欄位預設值
+
+```javascript
+taskDisplay: {
+    taskBarFields: {
+        environment: true,    // 環境名稱（建議保持為 true）
+        batch: true,          // 執行梯次
+        status: true,         // 狀態
+        purpose: true,        // 環境目的
+        businessDate: true,   // 營業日（改為顯示）
+        // ... 其他欄位
+    }
+}
+```
+
 ## Excel 欄位完整列表
 
 ### 必填欄位
+
 1. **環境名稱** (environment)
    - 關鍵字：環境名稱、環境名、環境、env、environment
    - 用途：第一階層分組
@@ -275,9 +361,11 @@ legend: {
    - 用途：計算日期範圍
 
 ### 選填欄位
+
 4. **環境目的** (purpose)
    - 關鍵字：環境目的、目的、用途、purpose、goal
    - 預設值：未指定目的
+   - **重要**：環境目的會根據「環境名稱 + 執行梯次」來決定
 
 5. **驗證迄日** (endDate)
    - 關鍵字：驗證迄日、結束日期、結束、完成日期、結束時間、end、迄日
@@ -292,19 +380,23 @@ legend: {
    - 預設值：未指定
 
 ### 擴展欄位
-8. **中介檔** (intermediateFile)
+
+8. **營業日** (businessDate)
+   - 關鍵字：營業日、營業日期、business date、business
+
+9. **中介檔** (intermediateFile)
    - 關鍵字：中介檔、中介檔欄位、中介檔案、intermediate、file
 
-9. **資料基準日** (dataBaseDate)
-   - 關鍵字：資料基準日、基準日、data base date、資料基準日期
+10. **資料基準日** (dataBaseDate)
+    - 關鍵字：資料基準日、基準日、data base date、資料基準日期
 
-10. **京城封版日** (kingdomFreezeDate)
+11. **京城封版日** (kingdomFreezeDate)
     - 關鍵字：京城封版日、封版日、freeze date、封版日期
 
-11. **京城傳送中介檔日** (kingdomTransferDate)
+12. **京城傳送中介檔日** (kingdomTransferDate)
     - 關鍵字：京城傳送中介檔日、傳送中介檔日、傳送日、transfer date、傳送日期
 
-12. **備注說明** (remark)
+13. **備注說明** (remark)
     - 關鍵字：備注說明、備註說明、備注、備註、說明、remark、note、comment
 
 ## 最佳實踐
@@ -333,7 +425,7 @@ legend: {
 ## 配置驗證
 
 修改配置後，建議：
-1. 清除瀏覽器快取
+1. 清除瀏覽器快取（點擊「清除快取」按鈕）
 2. 重新載入頁面
 3. 檢查控制台是否有錯誤
 4. 驗證功能是否正常運作
@@ -360,3 +452,9 @@ legend: {
 1. 檢查 `calendar.defaultDate`、`defaultYear`、`defaultMonth` 設定
 2. 確認資料中是否有有效的日期欄位
 3. 啟用除錯模式查看日誌
+
+### 問題：環境目的顯示錯誤
+**解決**：
+1. 確認環境目的會根據「環境名稱 + 執行梯次」來決定
+2. 檢查 Excel 中是否有正確的「環境目的」欄位
+3. 確認同一環境的不同梯次是否有不同的目的

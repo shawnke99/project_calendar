@@ -208,6 +208,24 @@ function applySettings() {
 }
 
 /**
+ * 取得欄位的預設值（從 config 中讀取）
+ * @param {string} fieldKey - 欄位鍵值
+ * @returns {boolean} 預設值
+ */
+function getDefaultFieldValue(fieldKey) {
+    // 從 config 中讀取預設值
+    const defaultTaskBarFields = SystemConfig.taskDisplay?.taskBarFields || {};
+    
+    // 如果 config 中有定義該欄位的預設值，使用它
+    if (defaultTaskBarFields.hasOwnProperty(fieldKey)) {
+        return defaultTaskBarFields[fieldKey] === true;
+    }
+    
+    // 如果 config 中沒有定義，預設為 false
+    return false;
+}
+
+/**
  * 重置設置為預設值
  */
 function resetSettings() {
@@ -216,16 +234,15 @@ function resetSettings() {
         SystemConfig.taskDisplay = {};
     }
     
-    // 取得所有欄位的預設值
+    // 取得所有欄位
     const fieldMapping = SystemConfig.fieldMapping || {};
     const allFields = Object.keys(fieldMapping);
     
     SystemConfig.taskDisplay.taskBarFields = {};
     
-    // 設置預設值（environment, batch, status 為 true，其他為 false）
+    // 從 config 中讀取預設值
     allFields.forEach(fieldKey => {
-        SystemConfig.taskDisplay.taskBarFields[fieldKey] = 
-            (fieldKey === 'environment' || fieldKey === 'batch' || fieldKey === 'status');
+        SystemConfig.taskDisplay.taskBarFields[fieldKey] = getDefaultFieldValue(fieldKey);
     });
 
     // 清除 localStorage 中的設置
@@ -275,9 +292,8 @@ function loadSettingsFromStorage() {
                 if (fields.hasOwnProperty(fieldKey)) {
                     SystemConfig.taskDisplay.taskBarFields[fieldKey] = fields[fieldKey] === true;
                 } else {
-                    // 使用預設值
-                    SystemConfig.taskDisplay.taskBarFields[fieldKey] = 
-                        (fieldKey === 'environment' || fieldKey === 'batch' || fieldKey === 'status');
+                    // 使用預設值（從 config 中讀取）
+                    SystemConfig.taskDisplay.taskBarFields[fieldKey] = getDefaultFieldValue(fieldKey);
                 }
             });
             

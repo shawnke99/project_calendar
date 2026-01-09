@@ -126,12 +126,14 @@ const SystemConfig = {
         // 任務條上顯示的欄位（第一層日曆顯示）
         // 所有 fieldMapping 中的欄位都可以在這裡配置是否顯示
         // 環境名稱預設總是顯示（作為主要識別），但可以通過此配置控制其他欄位
+        // 注意：這裡定義的是預設值，當用戶點擊「重置為預設」時會使用這些值
+        // 如果 fieldMapping 中有新欄位但這裡沒有定義，預設值為 false
         taskBarFields: {
             environment: true,      // 環境名稱（建議保持為 true，因為是主要識別）
             batch: true,            // 執行梯次
             status: true,           // 狀態
             businessDate: false,    // 營業日
-            purpose: false,         // 環境目的
+            purpose: true,         // 環境目的
             task: false,            // 工作內容
             startDate: false,       // 開始日期
             endDate: false,         // 結束日期
@@ -185,6 +187,7 @@ const SystemConfig = {
         // 是否啟用懶加載
         lazyLoad: false
     },
+
 
     // 除錯設定
     debug: {

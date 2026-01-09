@@ -209,10 +209,12 @@ function loadSettingsFromStorage() {
                 if (fields.hasOwnProperty(fieldKey)) {
                     SystemConfig.taskDisplay.taskBarFields[fieldKey] = fields[fieldKey] === true;
                 } else {
-                    // 使用預設值
+                    // 使用預設值（從 config 中讀取）
+                    const defaultTaskBarFields = SystemConfig.taskDisplay?.taskBarFields || {};
                     SystemConfig.taskDisplay.taskBarFields[fieldKey] = 
-                        (fieldKey === 'environment' || fieldKey === 'batch' || fieldKey === 'status') 
-                            ? true : false;
+                        defaultTaskBarFields.hasOwnProperty(fieldKey) 
+                            ? defaultTaskBarFields[fieldKey] === true 
+                            : false;
                 }
             });
             
@@ -358,9 +360,11 @@ function clearCacheAndReload() {
     console.log('清除快取完成，準備重新載入頁面（時間戳:', timestamp, '）...');
     
     // 使用時間戳重新載入，並更新所有 script 標籤的版本號
+    // 注意：版本號會由 HTML 中的腳本根據 _nocache 參數自動更新
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('_nocache', timestamp);
     console.log('重新載入 URL:', currentUrl.toString());
+    console.log('提示：所有文件的版本號將自動更新為時間戳，以確保清除快取');
     
     // 強制清除所有快取並重新載入
     // 使用 replace 確保瀏覽器不會使用快取
@@ -542,7 +546,7 @@ function createLegend() {
 
             const label = document.createElement('span');
             label.className = 'legend-label';
-            label.textContent = `${env.name} - ${env.purpose}`;
+            label.textContent = `${env.name}`;
 
             legendItem.appendChild(colorBox);
             legendItem.appendChild(label);

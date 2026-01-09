@@ -8,127 +8,6 @@
     <meta http-equiv="Expires" content="0">
     <title>專案行事曆 - 任務顯示管理</title>
     <link rel="stylesheet" href="css/calendar.css?v=2">
-    <!-- 清除 JavaScript 文件快取的內聯腳本 -->
-    <script>
-        (function() {
-            // 檢查 URL 參數中是否有 _nocache
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('_nocache')) {
-                const timestamp = urlParams.get('_nocache');
-                
-                // 檢查是否已經處理過（使用 sessionStorage 避免無限循環）
-                const processedKey = '_cache_cleared_' + timestamp;
-                if (sessionStorage.getItem(processedKey)) {
-                    // 已經處理過，移除 URL 參數和標記
-                    urlParams.delete('_nocache');
-                    const cleanUrl = window.location.pathname + 
-                        (urlParams.toString() ? '?' + urlParams.toString() : '') + 
-                        (window.location.hash || '');
-                    window.history.replaceState({}, '', cleanUrl);
-                    sessionStorage.removeItem(processedKey);
-                    return;
-                }
-                
-                // 標記為已處理
-                sessionStorage.setItem(processedKey, 'true');
-                
-                // 立即移除 URL 參數
-                urlParams.delete('_nocache');
-                const cleanUrl = window.location.pathname + 
-                    (urlParams.toString() ? '?' + urlParams.toString() : '') + 
-                    (window.location.hash || '');
-                window.history.replaceState({}, '', cleanUrl);
-                
-                // 更新所有 script 標籤的版本號
-                function updateScriptVersions() {
-                    console.log('開始更新 script 版本號，目標時間戳:', timestamp);
-                    const scripts = document.querySelectorAll('script[src]');
-                    let updated = false;
-                    let processedCount = 0;
-                    
-                    scripts.forEach(function(script) {
-                        const src = script.getAttribute('src');
-                        if (src && !src.includes('cdnjs.cloudflare.com')) {
-                            // 只更新本地文件，不更新 CDN 文件
-                            processedCount++;
-                            try {
-                                const url = new URL(src, window.location.origin);
-                                const currentVersion = url.searchParams.get('v');
-                                console.log('檢查 script:', src.substring(0, 40), '當前版本:', currentVersion, '目標版本:', timestamp);
-                                // 如果版本號不同，更新它
-                                if (currentVersion !== timestamp) {
-                                    url.searchParams.set('v', timestamp);
-                                    script.src = url.pathname + '?' + url.searchParams.toString();
-                                    updated = true;
-                                    console.log('✓ 已更新 script 版本號:', script.src);
-                                } else {
-                                    console.log('  script 版本號已是最新，跳過');
-                                }
-                            } catch (e) {
-                                // 如果 URL 解析失敗，嘗試簡單的字串替換
-                                console.log('URL 解析失敗，使用字串替換:', src.substring(0, 40));
-                                if (!src.includes('v=' + timestamp)) {
-                                    const separator = src.includes('?') ? '&' : '?';
-                                    const newSrc = src.replace(/[?&]v=\d+/, '') + separator + 'v=' + timestamp;
-                                    script.src = newSrc;
-                                    updated = true;
-                                    console.log('✓ 已更新 script 版本號 (字串替換):', script.src);
-                                } else {
-                                    console.log('  script 版本號已是最新（字串檢查），跳過');
-                                }
-                            }
-                        }
-                    });
-                    
-                    console.log('版本號更新完成，處理了', processedCount, '個 script，更新了', updated ? '是' : '否');
-                    
-                    // 清除 Cache API 快取（如果可用）
-                    if ('caches' in window) {
-                        caches.keys().then(function(names) {
-                            return Promise.all(names.map(function(name) {
-                                console.log('清除快取:', name);
-                                return caches.delete(name);
-                            }));
-                        }).then(function() {
-                            console.log('已清除所有 Cache API 快取');
-                        });
-                    }
-                    
-                    if (updated) {
-                        console.log('已更新所有 JavaScript 文件（包括 config.js）版本號，重新載入頁面以清除快取...');
-                        // 強制重新載入（不使用快取）
-                        // 先清除所有快取，然後重新載入
-                        if ('caches' in window) {
-                            caches.keys().then(function(names) {
-                                return Promise.all(names.map(function(name) {
-                                    return caches.delete(name);
-                                }));
-                            }).then(function() {
-                                console.log('已清除所有 Cache API 快取，準備重新載入...');
-                                // 使用 replace 確保不使用快取
-                                window.location.replace(window.location.href.split('?')[0] + '?_nocache=' + timestamp);
-                            });
-                        } else {
-                            // 如果不支援 Cache API，直接重新載入
-                            window.location.replace(window.location.href.split('?')[0] + '?_nocache=' + timestamp);
-                        }
-                    } else {
-                        // 如果不需要更新，清除標記
-                        sessionStorage.removeItem(processedKey);
-                        console.log('所有 JavaScript 文件版本號已是最新，無需重新載入');
-                    }
-                }
-                
-                // 等待 DOM 載入完成後再更新
-                if (document.readyState === 'loading') {
-                    document.addEventListener('DOMContentLoaded', updateScriptVersions);
-                } else {
-                    // DOM 已經載入，但 script 標籤可能還沒完全解析，稍等一下
-                    setTimeout(updateScriptVersions, 50);
-                }
-            }
-        })();
-    </script>
 </head>
 <body>
     <div class="container">
@@ -230,8 +109,10 @@
     <!-- 引入函式庫 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- 引入配置檔案（必須最先載入） -->
-    <script src="js/config.js?v=2"></script>
+    <!-- 版本號請直接在 HTML 中手動修改 ?v=xx -->
+    <script src="js/config.js?v=5"></script>
     <!-- 引入自訂模組 -->
+    <!-- 版本號請直接在 HTML 中手動修改 ?v=xx -->
     <script src="js/excel-reader.js?v=30"></script>
     <script src="js/data-processor.js?v=30"></script>
     <script src="js/calendar.js?v=30"></script>
@@ -239,4 +120,3 @@
     <script src="js/main.js?v=30"></script>
 </body>
 </html>
-
