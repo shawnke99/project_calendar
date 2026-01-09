@@ -11,42 +11,35 @@ const SystemConfig = {
     },
 
     // 環境顏色調色盤（以紅色系為主，確保與梯次顏色差異明顯）
+    // 系統會自動循環使用這些顏色，無需重複定義
     environmentColors: [
         '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d',  // 深紅色系
-        '#ef4444', '#f87171', '#fca5a5', '#fee2e2',  // 亮紅色系
-        '#991b1b', '#7f1d1d', '#dc2626', '#b91c1c',  // 深紅色系（重複）
-        '#f87171', '#fca5a5', '#ef4444', '#fee2e2',  // 亮紅色系（重複）
-        '#dc2626', '#b91c1c', '#991b1b', '#7f1d1d',  // 深紅色系（重複）
-        '#ef4444', '#f87171', '#fca5a5', '#fee2e2',  // 亮紅色系（重複）
-        '#991b1b', '#7f1d1d', '#dc2626', '#b91c1c',  // 深紅色系（重複）
-        '#f87171', '#fca5a5', '#ef4444', '#fee2e2'   // 亮紅色系（重複）
+        '#ef4444', '#f87171', '#fca5a5', '#fee2e2'   // 亮紅色系
     ],
 
-    // 梯次顏色調色盤（以藍色系為主，與環境顏色形成明顯對比）
+    // 梯次顏色調色盤（淺到深的藍、紫色系，確保視覺區別明顯）
     batchColors: [
-        '#1e3a8a', '#1e40af', '#2563eb', '#3b82f6',  // 深藍色系
-        '#60a5fa', '#93c5fd', '#dbeafe', '#eff6ff',  // 亮藍色系
-        '#1e40af', '#2563eb', '#1e3a8a', '#3b82f6',  // 深藍色系（重複）
-        '#93c5fd', '#dbeafe', '#60a5fa', '#eff6ff',  // 亮藍色系（重複）
-        '#1e3a8a', '#1e40af', '#2563eb', '#3b82f6',  // 深藍色系（重複）
-        '#60a5fa', '#93c5fd', '#dbeafe', '#eff6ff',  // 亮藍色系（重複）
-        '#1e40af', '#2563eb', '#1e3a8a', '#3b82f6',  // 深藍色系（重複）
-        '#93c5fd', '#dbeafe', '#60a5fa', '#eff6ff'   // 亮藍色系（重複）
+        '#dbeafe',  // 淺藍色 - 第一梯次
+        '#93c5fd',  // 中淺藍色 - 第二梯次
+        '#3b82f6',  // 中藍色 - 第三梯次
+        '#1e40af',  // 深藍色 - 第四梯次
+        '#c4b5fd',  // 淺紫色 - 第五梯次
+        '#7c3aed'   // 深紫色 - 第六梯次
     ],
 
     // 狀態顏色對應（限定為4個狀態）
     statusColors: {
         '未開始': '#9ca3af',           // 灰色
-        'IT前置準備中': '#3b82f6',     // 藍色
-        'User測試進行中': '#ef4444',   // 紅色
+        '準備中': '#3b82f6',     // 藍色
+        '驗證中': '#ef4444',   // 紅色
         '已完成': '#10b981'            // 綠色
     },
 
     // 狀態優先級（用於排序和顯示）
     statusPriority: {
         '未開始': 1,
-        'IT前置準備中': 2,
-        'User測試進行中': 3,
+        '準備中': 2,
+        '驗證中': 3,
         '已完成': 4
     },
 
@@ -74,7 +67,7 @@ const SystemConfig = {
     calendar: {
         maxDisplayTasks: 3,           // 每個日期格子最多顯示的任務數
         maxTasksInBlock: 2,            // 每個環境區塊最多顯示的工作項目數
-        dayMinHeight: 120,             // 日期格子的最小高度
+        dayMinHeight: 130,             // 日期格子的最小高度
         taskBarHeight: 18,             // 跨日期任務條的高度
         gridGap: 2,                    // 格子間距（px）
         // 預設顯示日期區間（如果資料中沒有日期，或需要指定初始顯示月份）
@@ -137,6 +130,37 @@ const SystemConfig = {
         enabled: false,                 // 是否啟用除錯模式
         logLevel: 'info',              // 日誌級別：'debug', 'info', 'warn', 'error'
         showConsoleLogs: false         // 是否顯示控制台日誌
+    },
+
+    // 非工作日設定
+    nonWorkingDays: {
+        // 是否啟用非工作日標記
+        enabled: true,
+        // 非工作日背景顏色（微調）
+        backgroundColor: '#f5f5f5',
+        // 週末是否視為非工作日
+        includeWeekends: true,
+        // 自訂非工作日列表（日期範圍或單一日期）
+        customDays: [
+            // 格式：{ start: 'YYYY-MM-DD', end: 'YYYY-MM-DD', description: '說明' }
+            // 或：{ date: 'YYYY-MM-DD', description: '說明' }
+            // 2026年台灣國定假日範例
+            { date: '2026-01-01', description: '元旦' },
+            { date: '2026-02-08', description: '農曆除夕' },
+            { date: '2026-02-09', description: '農曆正月初一' },
+            { date: '2026-02-10', description: '農曆正月初二' },
+            { date: '2026-02-11', description: '農曆正月初三' },
+            { date: '2026-02-12', description: '農曆正月初四' },
+            { date: '2026-02-13', description: '農曆正月初五' },
+            { date: '2026-02-28', description: '和平紀念日' },
+            { date: '2026-04-04', description: '兒童節' },
+            { date: '2026-04-05', description: '清明節' },
+            { date: '2026-05-01', description: '勞動節' },
+            { date: '2026-06-10', description: '端午節' },
+            { date: '2026-09-17', description: '中秋節' },
+            { date: '2026-10-10', description: '國慶日' },
+            { date: '2026-10-11', description: '國慶日補假' }
+        ]
     }
 };
 

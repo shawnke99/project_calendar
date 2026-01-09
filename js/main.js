@@ -7,7 +7,77 @@
 let excelReader;
 let dataProcessor;
 let calendar;
-let currentFilter = SystemConfig.filter?.defaultFilter || 'all';
+
+/**
+ * 從任務範圍中計算最早的日期
+ * @param {Map} taskRanges - 任務範圍映射
+ * @returns {Date|null} 最早的日期，如果沒有則返回 null
+ */
+function getEarliestDateFromRanges(taskRanges) {
+    const allDates = [];
+    
+    taskRanges.forEach(range => {
+        if (range.startDate) {
+            const date = new Date(range.startDate);
+            date.setHours(0, 0, 0, 0);
+            allDates.push(date);
+        }
+        if (range.endDate) {
+            const date = new Date(range.endDate);
+            date.setHours(0, 0, 0, 0);
+            allDates.push(date);
+        }
+    });
+    
+    if (allDates.length === 0) {
+        return null;
+    }
+    
+    const earliestDate = new Date(Math.min(...allDates.map(d => d.getTime())));
+    earliestDate.setHours(0, 0, 0, 0);
+    return new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+}
+
+/**
+ * 計算初始顯示日期
+ * @returns {Date|null} 初始日期
+ */
+function calculateInitialDate() {
+    const config = SystemConfig.calendar || {};
+    
+    // 1. 檢查 config 中的預設日期
+    if (config.defaultDate) {
+        if (typeof config.defaultDate === 'string') {
+            return new Date(config.defaultDate);
+        } else if (config.defaultDate instanceof Date) {
+            return new Date(config.defaultDate);
+        }
+    }
+    
+    // 2. 使用 config 中的年份和月份
+    if (config.defaultYear !== null && config.defaultYear !== undefined) {
+        const year = config.defaultYear;
+        const month = config.defaultMonth !== null && config.defaultMonth !== undefined 
+            ? config.defaultMonth 
+            : 0; // 預設1月
+        return new Date(year, month, 1);
+    }
+    
+    // 3. 從處理後的資料中找出最早日期
+    const taskRanges = dataProcessor.getTaskRanges();
+    const initialDate = getEarliestDateFromRanges(taskRanges);
+    
+    if (initialDate) {
+        console.log('從資料中找出最早日期:', initialDate.toISOString().split('T')[0]);
+        return initialDate;
+    }
+    
+    // 4. 使用當前日期
+    const currentDate = new Date();
+    currentDate.setDate(1);
+    console.log('使用當前日期:', currentDate.toISOString().split('T')[0]);
+    return currentDate;
+}
 
 /**
  * 初始化應用程式
@@ -130,26 +200,8 @@ async function reloadExcelFile() {
         dataProcessor.processData(rawData);
 
         // 重新設定初始顯示月份（根據資料中的最早日期）
-        const taskRanges = dataProcessor.getTaskRanges();
-        const allDates = [];
-        
-        taskRanges.forEach(range => {
-            if (range.startDate) {
-                const date = new Date(range.startDate);
-                date.setHours(0, 0, 0, 0);
-                allDates.push(date);
-            }
-            if (range.endDate) {
-                const date = new Date(range.endDate);
-                date.setHours(0, 0, 0, 0);
-                allDates.push(date);
-            }
-        });
-        
-        if (allDates.length > 0) {
-            const earliestDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-            earliestDate.setHours(0, 0, 0, 0);
-            const initialDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
+        const initialDate = getEarliestDateFromRanges(dataProcessor.getTaskRanges());
+        if (initialDate) {
             calendar.currentDate = new Date(initialDate);
         }
 
@@ -203,9 +255,14 @@ function clearCacheAndReload() {
         console.warn('清除 sessionStorage 失敗:', e);
     }
 
-    // 強制重新載入頁面（不使用快取）
+    // 生成時間戳並重新載入頁面
+    // 內聯腳本會處理 script 標籤的版本號更新
     const timestamp = new Date().getTime();
-    window.location.href = window.location.pathname + '?nocache=' + timestamp;
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('nocache', timestamp);
+    
+    console.log('清除快取，重新載入頁面...');
+    window.location.href = currentUrl.toString();
 }
 
 /**
@@ -251,53 +308,7 @@ async function loadExcelFile() {
         dataProcessor.processData(rawData);
 
         // 設定初始顯示月份（優先順序：config設定 > 資料中的最早日期 > 當前日期）
-        const config = SystemConfig.calendar || {};
-        let initialDate = null;
-        
-        // 1. 檢查 config 中的預設日期
-        if (config.defaultDate) {
-            if (typeof config.defaultDate === 'string') {
-                initialDate = new Date(config.defaultDate);
-            } else if (config.defaultDate instanceof Date) {
-                initialDate = new Date(config.defaultDate);
-            }
-        } else if (config.defaultYear !== null && config.defaultYear !== undefined) {
-            // 2. 使用 config 中的年份和月份
-            const year = config.defaultYear;
-            const month = config.defaultMonth !== null && config.defaultMonth !== undefined 
-                ? config.defaultMonth 
-                : 0; // 預設1月
-            initialDate = new Date(year, month, 1);
-        } else {
-            // 3. 從處理後的資料中找出最早日期（使用 taskRanges）
-            const taskRanges = dataProcessor.getTaskRanges();
-            const allDates = [];
-            
-            taskRanges.forEach(range => {
-                if (range.startDate) {
-                    const date = new Date(range.startDate);
-                    date.setHours(0, 0, 0, 0);
-                    allDates.push(date);
-                }
-                if (range.endDate) {
-                    const date = new Date(range.endDate);
-                    date.setHours(0, 0, 0, 0);
-                    allDates.push(date);
-                }
-            });
-            
-            if (allDates.length > 0) {
-                const earliestDate = new Date(Math.min(...allDates.map(d => d.getTime())));
-                earliestDate.setHours(0, 0, 0, 0);
-                initialDate = new Date(earliestDate.getFullYear(), earliestDate.getMonth(), 1);
-                console.log('從資料中找出最早日期:', initialDate.toISOString().split('T')[0]);
-            } else {
-                // 4. 使用當前日期
-                initialDate = new Date();
-                initialDate.setDate(1);
-                console.log('使用當前日期:', initialDate.toISOString().split('T')[0]);
-            }
-        }
+        const initialDate = calculateInitialDate();
         
         if (initialDate) {
             // 確保設定正確的日期
@@ -368,7 +379,6 @@ function createEnvironmentFilters() {
             btn.classList.add('active');
 
             // 更新篩選
-            currentFilter = env.name;
             calendar.setFilter(env.name);
         });
 
@@ -383,7 +393,6 @@ function createEnvironmentFilters() {
                 b.classList.remove('active');
             });
             allButton.classList.add('active');
-            currentFilter = 'all';
             calendar.setFilter('all');
         });
     }

@@ -359,12 +359,12 @@ class Calendar {
         taskBar.appendChild(envName);
         
         // 梯次標籤
-        if (taskRange.batch && taskRange.batch !== '未指定梯次') {
+        if (taskRange.batch && taskRange.batch !== DataProcessor.DEFAULT_BATCH) {
             const batchBadge = document.createElement('span');
             batchBadge.className = 'task-bar-badge';
             batchBadge.textContent = taskRange.batch;
             batchBadge.style.backgroundColor = taskRange.batchColor;
-            batchBadge.style.color = 'white';
+            batchBadge.style.color = this.getContrastTextColor(taskRange.batchColor);
             batchBadge.style.padding = '2px 6px';
             batchBadge.style.borderRadius = '4px';
             batchBadge.style.fontSize = '0.65em';
@@ -379,7 +379,7 @@ class Calendar {
             statusBadge.className = 'task-bar-badge';
             statusBadge.textContent = taskRange.status;
             statusBadge.style.backgroundColor = taskRange.statusColor;
-            statusBadge.style.color = 'white';
+            statusBadge.style.color = this.getContrastTextColor(taskRange.statusColor);
             statusBadge.style.padding = '2px 6px';
             statusBadge.style.borderRadius = '4px';
             statusBadge.style.fontSize = '0.65em';
@@ -461,12 +461,26 @@ class Calendar {
         const dateKey = this.dataProcessor.getDateKey(date);
         const isCurrentMonth = date.getMonth() === currentMonth;
         const isToday = this.isToday(date);
+        const isNonWorkingDay = this.isNonWorkingDay(date);
 
         if (!isCurrentMonth) {
             dayDiv.classList.add('other-month');
         }
         if (isToday) {
             dayDiv.classList.add('today');
+        }
+        if (isNonWorkingDay) {
+            dayDiv.classList.add('non-working-day');
+            // 設定非工作日背景顏色
+            const nonWorkingConfig = this.config.nonWorkingDays || {};
+            if (nonWorkingConfig.backgroundColor) {
+                dayDiv.style.backgroundColor = nonWorkingConfig.backgroundColor;
+            }
+            // 添加非工作日說明作為 title
+            const description = this.getNonWorkingDayDescription(date);
+            if (description) {
+                dayDiv.title = description;
+            }
         }
 
         // 日期數字
@@ -498,111 +512,6 @@ class Calendar {
         return dayDiv;
     }
 
-    /**
-     * 按環境分組任務
-     * @param {Array} tasks - 任務陣列
-     * @returns {Map} 環境名稱到任務陣列的映射
-     */
-    groupTasksByEnvironment(tasks) {
-        const grouped = new Map();
-        tasks.forEach(item => {
-            if (!grouped.has(item.environment)) {
-                grouped.set(item.environment, []);
-            }
-            grouped.get(item.environment).push(item);
-        });
-        return grouped;
-    }
-
-    /**
-     * 建立環境區塊元素
-     * @param {Array} envTasks - 該環境的任務陣列
-     * @param {string} envName - 環境名稱
-     * @returns {HTMLElement} 環境區塊元素
-     */
-    createEnvironmentBlock(envTasks, envName) {
-        if (envTasks.length === 0) return null;
-
-        const envData = envTasks[0].environmentData;
-        const envColor = envData.color;
-
-        const envBlock = document.createElement('div');
-        envBlock.className = 'environment-block';
-        envBlock.style.borderLeftColor = envColor;
-        envBlock.style.backgroundColor = this.addAlpha(envColor, 0.15);
-
-        // 環境標題
-        const envHeader = document.createElement('div');
-        envHeader.className = 'environment-header';
-        
-        const envNameSpan = document.createElement('span');
-        envNameSpan.className = 'environment-name';
-        envNameSpan.textContent = envName;
-        envNameSpan.style.color = envColor;
-
-        const envPurposeSpan = document.createElement('span');
-        envPurposeSpan.className = 'environment-purpose';
-        envPurposeSpan.textContent = `(${envData.purpose})`;
-
-        envHeader.appendChild(envNameSpan);
-        envHeader.appendChild(envPurposeSpan);
-        envBlock.appendChild(envHeader);
-
-        // 使用配置中的最大任務數
-        const maxTasks = this.config.calendar?.maxTasksInBlock || 2;
-        envTasks.slice(0, maxTasks).forEach(item => {
-            const taskItem = document.createElement('div');
-            taskItem.className = 'task-item';
-            
-            // 建立任務內容容器
-            const taskContent = document.createElement('div');
-            taskContent.className = 'task-content';
-            taskContent.textContent = item.task.content;
-            taskItem.appendChild(taskContent);
-            
-            // 添加梯次標籤（如果有）
-            if (item.batch && item.batch !== '未指定梯次') {
-                const batchBadge = document.createElement('span');
-                batchBadge.className = 'batch-badge';
-                batchBadge.textContent = item.batch;
-                batchBadge.style.backgroundColor = item.batchColor;
-                batchBadge.style.color = 'white';
-                taskItem.appendChild(batchBadge);
-            }
-            
-            // 添加狀態標籤
-            if (item.status) {
-                const statusBadge = document.createElement('span');
-                statusBadge.className = 'status-badge';
-                statusBadge.textContent = item.status;
-                statusBadge.style.backgroundColor = item.statusColor;
-                statusBadge.style.color = 'white';
-                taskItem.appendChild(statusBadge);
-            }
-            
-            taskItem.style.borderLeftColor = envColor;
-            taskItem.title = `${item.task.content}${item.batch ? ' | ' + item.batch : ''}${item.status ? ' | ' + item.status : ''}`;
-            envBlock.appendChild(taskItem);
-        });
-
-        // 如果還有更多任務
-        if (envTasks.length > maxTasks) {
-            const moreTask = document.createElement('div');
-            moreTask.className = 'task-item';
-            moreTask.textContent = `...還有 ${envTasks.length - maxTasks} 個工作項目`;
-            moreTask.style.borderLeftColor = envColor;
-            moreTask.style.fontStyle = 'italic';
-            envBlock.appendChild(moreTask);
-        }
-
-        // 點擊事件
-        envBlock.onclick = (e) => {
-            e.stopPropagation();
-            this.showEnvironmentDetails(envName, envTasks);
-        };
-
-        return envBlock;
-    }
 
     /**
      * 為顏色添加透明度
@@ -618,6 +527,163 @@ class Calendar {
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
         return color;
+    }
+
+    /**
+     * 計算顏色的亮度（用於決定文字顏色）
+     * @param {string} color - 顏色代碼（hex格式）
+     * @returns {number} 亮度值 (0-255)
+     */
+    getLuminance(color) {
+        if (!color || !color.startsWith('#')) {
+            return 128; // 預設中等亮度
+        }
+        
+        const hex = color.slice(1);
+        const r = parseInt(hex.slice(0, 2), 16);
+        const g = parseInt(hex.slice(2, 4), 16);
+        const b = parseInt(hex.slice(4, 6), 16);
+        
+        // 使用相對亮度公式 (WCAG)
+        // L = 0.2126 * R + 0.7152 * G + 0.0722 * B
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b);
+    }
+
+    /**
+     * 根據背景顏色取得對比文字顏色（白色或黑色）
+     * @param {string} backgroundColor - 背景顏色代碼
+     * @returns {string} 文字顏色（'#ffffff' 或 '#000000'）
+     */
+    getContrastTextColor(backgroundColor) {
+        const luminance = this.getLuminance(backgroundColor);
+        // 如果亮度大於 128（淺色背景），使用黑色文字；否則使用白色文字
+        return luminance > 128 ? '#000000' : '#ffffff';
+    }
+
+    /**
+     * 判斷是否為非工作日
+     * @param {Date} date - 日期
+     * @returns {boolean} 是否為非工作日
+     */
+    isNonWorkingDay(date) {
+        const nonWorkingConfig = this.config.nonWorkingDays || {};
+        
+        // 如果未啟用非工作日功能，返回 false
+        if (!nonWorkingConfig.enabled) {
+            return false;
+        }
+
+        // 檢查是否為週末
+        if (nonWorkingConfig.includeWeekends !== false) {
+            const dayOfWeek = date.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) { // 星期日或星期六
+                return true;
+            }
+        }
+
+        // 檢查自訂非工作日
+        if (nonWorkingConfig.customDays && Array.isArray(nonWorkingConfig.customDays)) {
+            const dateStr = this.formatDateForComparison(date);
+            
+            for (const customDay of nonWorkingConfig.customDays) {
+                // 單一日期
+                if (customDay.date) {
+                    if (this.isDateInRange(dateStr, customDay.date, customDay.date)) {
+                        return true;
+                    }
+                }
+                // 日期範圍
+                if (customDay.start && customDay.end) {
+                    if (this.isDateInRange(dateStr, customDay.start, customDay.end)) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 取得非工作日說明
+     * @param {Date} date - 日期
+     * @returns {string|null} 非工作日說明
+     */
+    getNonWorkingDayDescription(date) {
+        const nonWorkingConfig = this.config.nonWorkingDays || {};
+        
+        if (!nonWorkingConfig.enabled || !nonWorkingConfig.customDays) {
+            const dayOfWeek = date.getDay();
+            if (nonWorkingConfig.includeWeekends !== false && (dayOfWeek === 0 || dayOfWeek === 6)) {
+                return dayOfWeek === 0 ? '星期日' : '星期六';
+            }
+            return null;
+        }
+
+        const dateStr = this.formatDateForComparison(date);
+        const dayOfWeek = date.getDay();
+        
+        // 檢查週末
+        if (nonWorkingConfig.includeWeekends !== false && (dayOfWeek === 0 || dayOfWeek === 6)) {
+            // 先檢查是否有自訂說明
+            for (const customDay of nonWorkingConfig.customDays) {
+                let matches = false;
+                if (customDay.date) {
+                    matches = this.isDateInRange(dateStr, customDay.date, customDay.date);
+                } else if (customDay.start && customDay.end) {
+                    matches = this.isDateInRange(dateStr, customDay.start, customDay.end);
+                }
+                if (matches && customDay.description) {
+                    return customDay.description;
+                }
+            }
+            // 如果沒有自訂說明，返回週末說明
+            return dayOfWeek === 0 ? '星期日' : '星期六';
+        }
+
+        // 檢查自訂非工作日
+        for (const customDay of nonWorkingConfig.customDays) {
+            let matches = false;
+            
+            if (customDay.date) {
+                matches = this.isDateInRange(dateStr, customDay.date, customDay.date);
+            } else if (customDay.start && customDay.end) {
+                matches = this.isDateInRange(dateStr, customDay.start, customDay.end);
+            }
+            
+            if (matches && customDay.description) {
+                return customDay.description;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 格式化日期用於比較（YYYY-MM-DD）
+     * @param {Date|string} date - 日期物件或字串
+     * @returns {string} 格式化後的日期字串
+     */
+    formatDateForComparison(date) {
+        if (typeof date === 'string') {
+            return date;
+        }
+        const d = new Date(date);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    /**
+     * 檢查日期是否在範圍內
+     * @param {string} dateStr - 日期字串（YYYY-MM-DD）
+     * @param {string} startStr - 開始日期字串（YYYY-MM-DD）
+     * @param {string} endStr - 結束日期字串（YYYY-MM-DD）
+     * @returns {boolean} 是否在範圍內
+     */
+    isDateInRange(dateStr, startStr, endStr) {
+        return dateStr >= startStr && dateStr <= endStr;
     }
 
     /**
@@ -642,6 +708,118 @@ class Calendar {
         if (monthDisplay) {
             monthDisplay.textContent = `${year}年${month + 1}月`;
         }
+        
+        // 更新非工作日說明
+        this.updateNonWorkingDaysInfo(year, month);
+    }
+
+    /**
+     * 更新非工作日說明區塊
+     * @param {number} year - 年份
+     * @param {number} month - 月份
+     */
+    updateNonWorkingDaysInfo(year, month) {
+        const container = document.getElementById('nonWorkingDaysInfo');
+        if (!container) return;
+
+        const nonWorkingConfig = this.config.nonWorkingDays || {};
+        
+        // 如果未啟用非工作日功能，隱藏區塊
+        if (!nonWorkingConfig.enabled) {
+            container.innerHTML = '';
+            container.parentElement.style.display = 'none';
+            return;
+        }
+
+        container.parentElement.style.display = 'block';
+        container.innerHTML = '';
+
+        // 取得當月所有日期
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const daysInMonth = lastDay.getDate();
+
+        // 收集當月的非工作日（只包含自訂的非工作日，不包含週末）
+        const nonWorkingDaysList = [];
+        const processedDates = new Set();
+
+        // 檢查自訂非工作日
+        if (nonWorkingConfig.customDays && Array.isArray(nonWorkingConfig.customDays)) {
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                date.setHours(0, 0, 0, 0);
+                const dateStr = this.formatDateForComparison(date);
+                
+                // 檢查是否在自訂非工作日列表中
+                for (const customDay of nonWorkingConfig.customDays) {
+                    let matches = false;
+                    
+                    if (customDay.date) {
+                        matches = this.isDateInRange(dateStr, customDay.date, customDay.date);
+                    } else if (customDay.start && customDay.end) {
+                        matches = this.isDateInRange(dateStr, customDay.start, customDay.end);
+                    }
+                    
+                    if (matches && !processedDates.has(dateStr)) {
+                        processedDates.add(dateStr);
+                        const description = customDay.description || '非工作日';
+                        nonWorkingDaysList.push({
+                            date: date,
+                            dateStr: dateStr,
+                            description: description,
+                            day: day
+                        });
+                        break; // 找到匹配就跳出，避免重複
+                    }
+                }
+            }
+        }
+
+        // 按日期排序
+        nonWorkingDaysList.sort((a, b) => a.day - b.day);
+
+        // 如果沒有非工作日，顯示提示
+        if (nonWorkingDaysList.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.className = 'non-working-days-empty';
+            emptyMsg.textContent = '本月無特殊非工作日';
+            emptyMsg.style.color = '#999';
+            emptyMsg.style.fontStyle = 'italic';
+            emptyMsg.style.padding = '10px';
+            container.appendChild(emptyMsg);
+            return;
+        }
+
+        // 建立非工作日列表
+        const listContainer = document.createElement('div');
+        listContainer.className = 'non-working-days-list';
+
+        nonWorkingDaysList.forEach(item => {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'non-working-day-item';
+
+            // 日期顯示
+            const dateSpan = document.createElement('span');
+            dateSpan.className = 'non-working-day-date';
+            dateSpan.textContent = `${month + 1}月${item.day}日`;
+            dateSpan.style.fontWeight = '600';
+            dateSpan.style.color = '#333';
+            dateSpan.style.marginRight = '12px';
+            dateSpan.style.minWidth = '60px';
+            dateSpan.style.display = 'inline-block';
+
+            // 說明顯示
+            const descSpan = document.createElement('span');
+            descSpan.className = 'non-working-day-description';
+            descSpan.textContent = item.description;
+            descSpan.style.color = '#666';
+
+            itemDiv.appendChild(dateSpan);
+            itemDiv.appendChild(descSpan);
+            listContainer.appendChild(itemDiv);
+        });
+
+        container.appendChild(listContainer);
     }
 
     /**
@@ -710,64 +888,11 @@ class Calendar {
                 <div class="modal-section">
                     <h3 style="color: ${rangeData.environmentData.color};">${rangeData.environment}</h3>
                     <p><strong>環境目的：</strong>${rangeData.environmentData.purpose}</p>
-                    <p><strong>執行梯次：</strong><span class="detail-badge" style="background-color: ${rangeData.batchColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${rangeData.batch}</span></p>
-                    <p><strong>狀態：</strong><span class="detail-badge" style="background-color: ${rangeData.statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${rangeData.status}</span></p>
+                    <p><strong>執行梯次：</strong><span class="detail-badge" style="background-color: ${rangeData.batchColor}; color: ${this.getContrastTextColor(rangeData.batchColor)}; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${rangeData.batch}</span></p>
+                    <p><strong>狀態：</strong><span class="detail-badge" style="background-color: ${rangeData.statusColor}; color: ${this.getContrastTextColor(rangeData.statusColor)}; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${rangeData.status}</span></p>
                     <h4 style="margin-top: 15px; margin-bottom: 10px; color: #666; font-size: 0.95em;">工作項目：</h4>
                     <ul class="task-list">
-                        ${rangeData.tasks.map(task => {
-                            let detailInfo = '';
-                            
-                            // 顯示所有欄位（包括空值）
-                            if (task.customFields && Object.keys(task.customFields).length > 0) {
-                                // 按欄位名稱排序，確保顯示順序一致
-                                const sortedFields = Object.entries(task.customFields).sort((a, b) => {
-                                    return a[0].localeCompare(b[0], 'zh-TW');
-                                });
-                                
-                                sortedFields.forEach(([fieldName, fieldValue]) => {
-                                    // 顯示所有欄位，即使值為空
-                                    let displayValue = '';
-                                    if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
-                                        displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                    } else if (fieldValue instanceof Date) {
-                                        displayValue = this.formatDate(fieldValue);
-                                    } else {
-                                        displayValue = String(fieldValue);
-                                    }
-                                    detailInfo += `<br><small><strong>${fieldName}：</strong>${displayValue}</small>`;
-                                });
-                            } else {
-                                // 如果沒有 customFields，顯示已知欄位（包括空值）
-                                const knownFields = [
-                                    { key: 'dataBaseDate', label: '資料基準日' },
-                                    { key: 'kingdomFreezeDate', label: '京城封版日' },
-                                    { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
-                                    { key: 'remark', label: '備注說明' }
-                                ];
-                                
-                                knownFields.forEach(field => {
-                                    const value = task[field.key];
-                                    let displayValue = '';
-                                    if (!value || value === '') {
-                                        displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                    } else if (value instanceof Date) {
-                                        displayValue = this.formatDate(value);
-                                    } else {
-                                        displayValue = String(value);
-                                    }
-                                    detailInfo += `<br><small><strong>${field.label}：</strong>${displayValue}</small>`;
-                                });
-                            }
-                            
-                            return `
-                            <li>
-                                <strong>${task.content}</strong><br>
-                                ${task.startDate ? `<small>開始日期：${this.formatDate(task.startDate)}</small>` : '<small>開始日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
-                                ${task.endDate ? `<br><small>結束日期：${this.formatDate(task.endDate)}</small>` : '<br><small>結束日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
-                                ${detailInfo}
-                            </li>
-                        `;
-                        }).join('')}
+                        ${rangeData.tasks.map(task => this.generateTaskDetailHTML(task)).join('')}
                     </ul>
                 </div>
             `;
@@ -799,65 +924,12 @@ class Calendar {
             <div class="modal-section">
                 <h3 style="color: ${taskRange.environmentData.color};">${taskRange.environment}</h3>
                 <p><strong>環境目的：</strong>${taskRange.environmentData.purpose}</p>
-                <p><strong>執行梯次：</strong><span class="detail-badge" style="background-color: ${taskRange.batchColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${taskRange.batch}</span></p>
-                <p><strong>狀態：</strong><span class="detail-badge" style="background-color: ${taskRange.statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${taskRange.status}</span></p>
+                <p><strong>執行梯次：</strong><span class="detail-badge" style="background-color: ${taskRange.batchColor}; color: ${this.getContrastTextColor(taskRange.batchColor)}; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${taskRange.batch}</span></p>
+                <p><strong>狀態：</strong><span class="detail-badge" style="background-color: ${taskRange.statusColor}; color: ${this.getContrastTextColor(taskRange.statusColor)}; padding: 2px 6px; border-radius: 3px; font-size: 0.85em;">${taskRange.status}</span></p>
                 <p><strong>日期範圍：</strong>${this.formatDate(taskRange.startDate)} 至 ${this.formatDate(taskRange.endDate)}</p>
                 <h4 style="margin-top: 15px; margin-bottom: 10px; color: #666; font-size: 0.95em;">工作項目：</h4>
                 <ul class="task-list">
-                    ${tasks.map(item => {
-                        let detailInfo = '';
-                        
-                        // 顯示所有欄位（包括空值）
-                        if (item.task.customFields && Object.keys(item.task.customFields).length > 0) {
-                            // 按欄位名稱排序，確保顯示順序一致
-                            const sortedFields = Object.entries(item.task.customFields).sort((a, b) => {
-                                return a[0].localeCompare(b[0], 'zh-TW');
-                            });
-                            
-                            sortedFields.forEach(([fieldName, fieldValue]) => {
-                                // 顯示所有欄位，即使值為空
-                                let displayValue = '';
-                                if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
-                                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                } else if (fieldValue instanceof Date) {
-                                    displayValue = this.formatDate(fieldValue);
-                                } else {
-                                    displayValue = String(fieldValue);
-                                }
-                                detailInfo += `<br><small><strong>${fieldName}：</strong>${displayValue}</small>`;
-                            });
-                        } else {
-                            // 如果沒有 customFields，顯示已知欄位（包括空值）
-                            const knownFields = [
-                                { key: 'dataBaseDate', label: '資料基準日' },
-                                { key: 'kingdomFreezeDate', label: '京城封版日' },
-                                { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
-                                { key: 'remark', label: '備注說明' }
-                            ];
-                            
-                            knownFields.forEach(field => {
-                                const value = item.task[field.key];
-                                let displayValue = '';
-                                if (!value || value === '') {
-                                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                } else if (value instanceof Date) {
-                                    displayValue = this.formatDate(value);
-                                } else {
-                                    displayValue = String(value);
-                                }
-                                detailInfo += `<br><small><strong>${field.label}：</strong>${displayValue}</small>`;
-                            });
-                        }
-                        
-                        return `
-                        <li>
-                            <strong>${item.task.content}</strong><br>
-                            ${item.task.startDate ? `<small>開始日期：${this.formatDate(item.task.startDate)}</small>` : '<small>開始日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
-                            ${item.task.endDate ? `<br><small>結束日期：${this.formatDate(item.task.endDate)}</small>` : '<br><small>結束日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
-                            ${detailInfo}
-                        </li>
-                    `;
-                    }).join('')}
+                    ${tasks.map(item => this.generateTaskDetailHTML(item.task)).join('')}
                 </ul>
             </div>
         `;
@@ -866,97 +938,6 @@ class Calendar {
         modal.classList.add('active');
     }
 
-    /**
-     * 顯示環境詳情
-     * @param {string} envName - 環境名稱
-     * @param {Array} tasks - 任務陣列
-     */
-    showEnvironmentDetails(envName, tasks) {
-        const envData = tasks[0].environmentData;
-        const modal = document.getElementById('taskModal');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalBody = document.getElementById('modalBody');
-
-        modalTitle.textContent = envName;
-        modalTitle.style.color = envData.color;
-        
-        let html = `
-            <div class="modal-section">
-                <h3>環境目的</h3>
-                <p>${envData.purpose}</p>
-            </div>
-            <div class="modal-section">
-                <h3>工作項目</h3>
-                <ul class="task-list">
-                    ${tasks.map(item => {
-                        const batchBadge = item.batch && item.batch !== '未指定梯次'
-                            ? `<span class="detail-badge" style="background-color: ${item.batchColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; margin-left: 8px;">${item.batch}</span>`
-                            : '';
-                        const statusBadge = item.status
-                            ? `<span class="detail-badge" style="background-color: ${item.statusColor}; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.85em; margin-left: 8px;">${item.status}</span>`
-                            : '';
-                        
-                        // 建立詳細資訊區塊
-                        let detailInfo = '';
-                        
-                        // 顯示所有欄位（包括空值）
-                        if (item.task.customFields && Object.keys(item.task.customFields).length > 0) {
-                            // 按欄位名稱排序，確保顯示順序一致
-                            const sortedFields = Object.entries(item.task.customFields).sort((a, b) => {
-                                return a[0].localeCompare(b[0], 'zh-TW');
-                            });
-                            
-                            sortedFields.forEach(([fieldName, fieldValue]) => {
-                                // 顯示所有欄位，即使值為空
-                                let displayValue = '';
-                                if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
-                                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                } else if (fieldValue instanceof Date) {
-                                    displayValue = this.formatDate(fieldValue);
-                                } else {
-                                    displayValue = String(fieldValue);
-                                }
-                                detailInfo += `<br><small><strong>${fieldName}：</strong>${displayValue}</small>`;
-                            });
-                        } else {
-                            // 如果沒有 customFields，顯示已知欄位（包括空值）
-                            const knownFields = [
-                                { key: 'dataBaseDate', label: '資料基準日' },
-                                { key: 'kingdomFreezeDate', label: '京城封版日' },
-                                { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
-                                { key: 'remark', label: '備注說明' }
-                            ];
-                            
-                            knownFields.forEach(field => {
-                                const value = item.task[field.key];
-                                let displayValue = '';
-                                if (!value || value === '') {
-                                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
-                                } else if (value instanceof Date) {
-                                    displayValue = this.formatDate(value);
-                                } else {
-                                    displayValue = String(value);
-                                }
-                                detailInfo += `<br><small><strong>${field.label}：</strong>${displayValue}</small>`;
-                            });
-                        }
-                        
-                        return `
-                        <li>
-                            <strong>${item.task.content}</strong>${batchBadge}${statusBadge}<br>
-                            <small>開始日期：${item.task.startDate ? this.formatDate(item.task.startDate) : '<span style="color: #999; font-style: italic;">（無資料）</span>'}</small>
-                            ${item.task.endDate ? `<br><small>結束日期：${this.formatDate(item.task.endDate)}</small>` : '<br><small>結束日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
-                            ${detailInfo}
-                        </li>
-                    `;
-                    }).join('')}
-                </ul>
-            </div>
-        `;
-
-        modalBody.innerHTML = html;
-        modal.classList.add('active');
-    }
 
     /**
      * 格式化日期
@@ -964,9 +945,69 @@ class Calendar {
      * @returns {string} 格式化後的日期字串
      */
     formatDate(date) {
-        if (!date) return '未指定';
+        if (!date) return DataProcessor.UNSPECIFIED_STATUS;
         const d = new Date(date);
         return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+    }
+
+    /**
+     * 生成任務詳情 HTML（共用方法）
+     * @param {Object} task - 任務物件
+     * @returns {string} 任務詳情 HTML
+     */
+    generateTaskDetailHTML(task) {
+        let detailInfo = '';
+        
+        // 顯示所有欄位（包括空值）
+        if (task.customFields && Object.keys(task.customFields).length > 0) {
+            // 按欄位名稱排序，確保顯示順序一致
+            const sortedFields = Object.entries(task.customFields).sort((a, b) => {
+                return a[0].localeCompare(b[0], 'zh-TW');
+            });
+            
+            sortedFields.forEach(([fieldName, fieldValue]) => {
+                // 顯示所有欄位，即使值為空
+                let displayValue = '';
+                if (fieldValue === null || fieldValue === undefined || fieldValue === '') {
+                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
+                } else if (fieldValue instanceof Date) {
+                    displayValue = this.formatDate(fieldValue);
+                } else {
+                    displayValue = String(fieldValue);
+                }
+                detailInfo += `<br><small><strong>${fieldName}：</strong>${displayValue}</small>`;
+            });
+        } else {
+            // 如果沒有 customFields，顯示已知欄位（包括空值）
+            const knownFields = [
+                { key: 'dataBaseDate', label: '資料基準日' },
+                { key: 'kingdomFreezeDate', label: '京城封版日' },
+                { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
+                { key: 'remark', label: '備注說明' }
+            ];
+            
+            knownFields.forEach(field => {
+                const value = task[field.key];
+                let displayValue = '';
+                if (!value || value === '') {
+                    displayValue = '<span style="color: #999; font-style: italic;">（無資料）</span>';
+                } else if (value instanceof Date) {
+                    displayValue = this.formatDate(value);
+                } else {
+                    displayValue = String(value);
+                }
+                detailInfo += `<br><small><strong>${field.label}：</strong>${displayValue}</small>`;
+            });
+        }
+        
+        return `
+            <li>
+                <strong>${task.content}</strong><br>
+                ${task.startDate ? `<small>開始日期：${this.formatDate(task.startDate)}</small>` : '<small>開始日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
+                ${task.endDate ? `<br><small>結束日期：${this.formatDate(task.endDate)}</small>` : '<br><small>結束日期：<span style="color: #999; font-style: italic;">（無資料）</span></small>'}
+                ${detailInfo}
+            </li>
+        `;
     }
 }
 

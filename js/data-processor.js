@@ -4,6 +4,38 @@
  */
 
 class DataProcessor {
+    // 靜態常數：狀態映射表（將各種可能的狀態名稱映射到標準狀態）
+    static STATUS_MAP = {
+        // 映射到「未開始」
+        '待開始': '未開始',
+        '未指定': '未開始',
+        '規劃中': '未開始',
+        // 映射到「準備中」
+        '進行中': '準備中',
+        '準備中': '準備中',
+        '前置準備中': '準備中',
+        'IT前置準備中': '準備中',
+        // 映射到「驗證中」
+        '測試中': '驗證中',
+        '測試進行中': '驗證中',
+        '測試中': '驗證中',
+        'User測試進行中': '驗證中',
+        // 映射到「已完成」
+        '完成': '已完成',
+        '已驗證': '已完成'
+    };
+
+    // 靜態常數：標準狀態列表
+    static STANDARD_STATUSES = ['未開始', '準備中', '驗證中', '已完成'];
+
+    // 預設狀態
+    static DEFAULT_STATUS = '未開始';
+    
+    // 其他預設值常數
+    static DEFAULT_PURPOSE = '未指定目的';
+    static DEFAULT_BATCH = '未指定梯次';
+    static UNSPECIFIED_STATUS = '未指定';
+
     constructor(config = SystemConfig) {
         this.config = config;
         this.environments = new Map(); // 環境資料
@@ -20,6 +52,30 @@ class DataProcessor {
         
         this.environmentColorIndex = 0;
         this.batchColorIndex = 0;
+    }
+
+    /**
+     * 標準化狀態名稱（將各種可能的狀態名稱映射到標準狀態）
+     * @param {string} status - 原始狀態名稱
+     * @returns {string} 標準化後的狀態名稱
+     */
+    normalizeStatus(status) {
+        if (!status) {
+            return DataProcessor.DEFAULT_STATUS;
+        }
+
+        // 如果狀態在映射表中，使用映射後的值
+        if (DataProcessor.STATUS_MAP[status]) {
+            return DataProcessor.STATUS_MAP[status];
+        }
+
+        // 如果不在映射表中，檢查是否為標準狀態之一
+        if (DataProcessor.STANDARD_STATUSES.includes(status)) {
+            return status;
+        }
+
+        // 如果既不在映射表，也不是標準狀態，預設為「未開始」
+        return DataProcessor.DEFAULT_STATUS;
     }
 
     /**
@@ -45,7 +101,7 @@ class DataProcessor {
             if (!this.environments.has(envName)) {
                 this.environments.set(envName, {
                     name: envName,
-                    purpose: record.purpose || '未指定目的',
+                    purpose: record.purpose || DataProcessor.DEFAULT_PURPOSE,
                     tasks: [],
                     color: this.getColorForEnvironment(envName)
                 });
@@ -53,48 +109,14 @@ class DataProcessor {
 
             const environment = this.environments.get(envName);
             // 標準化狀態名稱（限定為4個標準狀態）
-            let normalizedStatus = record.status || '未開始';
-            
-            // 狀態映射規則（將各種可能的狀態名稱映射到標準狀態）
-            const statusMap = {
-                // 映射到「未開始」
-                '待開始': '未開始',
-                '未指定': '未開始',
-                '規劃中': '未開始',
-                // 映射到「IT前置準備中」
-                '進行中': 'IT前置準備中',
-                '準備中': 'IT前置準備中',
-                '前置準備中': 'IT前置準備中',
-                'IT準備中': 'IT前置準備中',
-                // 映射到「User測試進行中」
-                '測試中': 'User測試進行中',
-                '測試進行中': 'User測試進行中',
-                'User測試中': 'User測試進行中',
-                '驗證中': 'User測試進行中',
-                '待驗證': 'User測試進行中',
-                // 映射到「已完成」
-                '完成': '已完成',
-                '已驗證': '已完成'
-            };
-            
-            // 如果狀態在映射表中，使用映射後的值
-            if (statusMap[normalizedStatus]) {
-                normalizedStatus = statusMap[normalizedStatus];
-            } else {
-                // 如果不在映射表中，檢查是否為標準狀態之一
-                const standardStatuses = ['未開始', 'IT前置準備中', 'User測試進行中', '已完成'];
-                if (!standardStatuses.includes(normalizedStatus)) {
-                    // 如果既不在映射表，也不是標準狀態，預設為「未開始」
-                    normalizedStatus = '未開始';
-                }
-            }
+            const normalizedStatus = this.normalizeStatus(record.status);
             
             environment.tasks.push({
                 content: record.task,
                 startDate: record.startDate,
                 endDate: record.endDate,
                 status: normalizedStatus,
-                batch: record.batch || '未指定梯次',
+                batch: record.batch || DataProcessor.DEFAULT_BATCH,
                 // 已知欄位（如果存在）
                 dataBaseDate: record.dataBaseDate || null,
                 kingdomFreezeDate: record.kingdomFreezeDate || null,
@@ -125,8 +147,8 @@ class DataProcessor {
                     return;
                 }
                 
-                const batch = task.batch || '未指定梯次';
-                const status = task.status || '未指定';
+                const batch = task.batch || DataProcessor.DEFAULT_BATCH;
+                const status = task.status || DataProcessor.UNSPECIFIED_STATUS;
                 
                 // 建立範圍ID：環境+梯次+狀態
                 const rangeId = `${envName}_${batch}_${status}`;
@@ -206,8 +228,10 @@ class DataProcessor {
                 if (a.environment !== b.environment) {
                     return a.environment.localeCompare(b.environment);
                 }
-                // 最後按任務內容排序
-                return a.task.content.localeCompare(b.task.content);
+                // 最後按第一個任務內容排序
+                const taskA = a.tasks && a.tasks.length > 0 ? a.tasks[0].content : '';
+                const taskB = b.tasks && b.tasks.length > 0 ? b.tasks[0].content : '';
+                return taskA.localeCompare(taskB);
             });
         });
     }
@@ -272,7 +296,7 @@ class DataProcessor {
      * @returns {string} 顏色代碼
      */
     getColorForBatch(batch) {
-        if (!batch || batch === '未指定梯次') {
+        if (!batch || batch === DataProcessor.DEFAULT_BATCH) {
             return '#9e9e9e'; // 灰色
         }
         
@@ -308,40 +332,8 @@ class DataProcessor {
      * @returns {string} 顏色代碼
      */
     getColorForStatus(status) {
-        if (!status) {
-            return this.statusColors['未開始'] || '#9ca3af';
-        }
-        
-        // 標準化狀態名稱（將各種可能的狀態名稱映射到標準狀態）
-        const statusMap = {
-            // 映射到「未開始」
-            '待開始': '未開始',
-            '未指定': '未開始',
-            '規劃中': '未開始',
-            // 映射到「IT前置準備中」
-            '進行中': 'IT前置準備中',
-            '準備中': 'IT前置準備中',
-            '前置準備中': 'IT前置準備中',
-            'IT準備中': 'IT前置準備中',
-            // 映射到「User測試進行中」
-            '測試中': 'User測試進行中',
-            '測試進行中': 'User測試進行中',
-            'User測試中': 'User測試進行中',
-            '驗證中': 'User測試進行中',
-            '待驗證': 'User測試進行中',
-            // 映射到「已完成」
-            '完成': '已完成',
-            '已驗證': '已完成'
-        };
-        
-        const normalizedStatus = statusMap[status] || status;
-        
-        // 檢查是否為標準狀態
-        const standardStatuses = ['未開始', 'IT前置準備中', 'User測試進行中', '已完成'];
-        const finalStatus = standardStatuses.includes(normalizedStatus) ? normalizedStatus : '未開始';
-        
-        // 返回對應的顏色
-        return this.statusColors[finalStatus] || '#9ca3af';
+        const normalizedStatus = this.normalizeStatus(status);
+        return this.statusColors[normalizedStatus] || '#9ca3af';
     }
 
     /**
@@ -358,8 +350,7 @@ class DataProcessor {
      */
     getStatuses() {
         // 只返回標準的4個狀態
-        const standardStatuses = ['未開始', 'IT前置準備中', 'User測試進行中', '已完成'];
-        return standardStatuses.filter(status => this.statusColors[status]);
+        return DataProcessor.STANDARD_STATUSES.filter(status => this.statusColors[status]);
     }
 
     /**

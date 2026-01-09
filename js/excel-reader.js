@@ -4,9 +4,29 @@
  */
 
 class ExcelReader {
+    // 預設值常數
+    static DEFAULT_PURPOSE = '未指定目的';
+    static DEFAULT_ENVIRONMENT = '未命名環境';
+    static DEFAULT_STATUS = '未開始';
+    static UNSPECIFIED_STATUS = '未指定';
+
     constructor(config = SystemConfig) {
         this.rawData = null;
         this.config = config;
+    }
+
+    /**
+     * 統一的錯誤處理方法
+     * @param {string} operation - 操作名稱
+     * @param {Error} error - 錯誤物件
+     * @returns {Error} 格式化的錯誤訊息
+     */
+    handleError(operation, error) {
+        const message = `${operation}失敗: ${error.message}`;
+        if (this.config.debug?.showConsoleLogs) {
+            console.error(message, error);
+        }
+        return new Error(message);
     }
 
     /**
@@ -33,7 +53,7 @@ class ExcelReader {
                             this.rawData = result;
                             resolve(result);
                         } catch (error) {
-                            reject(new Error(`解析 Excel 檔案失敗: ${error.message}`));
+                            reject(this.handleError('解析 Excel 檔案', error));
                         }
                     };
                     reader.onerror = () => reject(new Error('讀取檔案失敗'));
@@ -72,7 +92,7 @@ class ExcelReader {
             this.rawData = result;
             return result;
         } catch (error) {
-            throw new Error(`讀取 Excel 檔案失敗: ${error.message}`);
+            throw this.handleError('讀取 Excel 檔案', error);
         }
     }
 
@@ -292,7 +312,7 @@ class ExcelReader {
 
         // 如果還是沒有目的，設為預設值
         if (!record.purpose) {
-            record.purpose = '未指定目的';
+            record.purpose = ExcelReader.DEFAULT_PURPOSE;
         }
 
         // 執行梯次
@@ -319,7 +339,7 @@ class ExcelReader {
         if (headerMap.status !== undefined) {
             record.status = String(row[headerMap.status] || '').trim();
         } else {
-            record.status = '未開始'; // 預設為「未開始」
+            record.status = ExcelReader.DEFAULT_STATUS; // 預設為「未開始」
         }
 
         // 已知的擴展欄位（如果存在）
@@ -387,7 +407,7 @@ class ExcelReader {
 
         // 如果缺少環境名稱，嘗試從工作內容推斷或使用預設值
         if (!record.environment) {
-            record.environment = '未命名環境';
+            record.environment = ExcelReader.DEFAULT_ENVIRONMENT;
         }
 
         // 如果缺少工作內容，使用環境名稱作為工作內容
@@ -482,7 +502,7 @@ class ExcelReader {
                     if (parts.length > 1) {
                         record.purpose = parts.slice(1).join(':').trim();
                     } else {
-                        record.purpose = '未指定目的';
+                        record.purpose = ExcelReader.DEFAULT_PURPOSE;
                     }
                 }
             }
@@ -517,10 +537,10 @@ class ExcelReader {
         }
 
         if (!record.purpose) {
-            record.purpose = '未指定目的';
+            record.purpose = ExcelReader.DEFAULT_PURPOSE;
         }
 
-        record.status = '未指定';
+        record.status = ExcelReader.UNSPECIFIED_STATUS;
 
         return record;
     }

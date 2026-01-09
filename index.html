@@ -5,6 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>專案行事曆 - 任務顯示管理</title>
     <link rel="stylesheet" href="css/calendar.css?v=2">
+    <!-- 清除 JavaScript 文件快取的內聯腳本（必須在所有 script 標籤之前執行） -->
+    <script>
+        (function() {
+            // 檢查 URL 參數中是否有 nocache
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('nocache')) {
+                const timestamp = urlParams.get('nocache');
+                
+                // 立即移除 URL 參數（避免重新載入時再次觸發）
+                const cleanUrl = window.location.pathname + (window.location.hash || '');
+                window.history.replaceState({}, '', cleanUrl);
+                
+                // 更新所有 script 標籤的版本號
+                const scripts = document.querySelectorAll('script[src]');
+                let needsReload = false;
+                
+                scripts.forEach(function(script) {
+                    const src = script.getAttribute('src');
+                    if (src && !src.includes('cdnjs.cloudflare.com')) {
+                        // 只更新本地文件，不更新 CDN 文件
+                        try {
+                            const url = new URL(src, window.location.origin);
+                            const currentVersion = url.searchParams.get('v');
+                            // 如果版本號不同，更新它
+                            if (currentVersion !== timestamp) {
+                                url.searchParams.set('v', timestamp);
+                                script.src = url.pathname + '?' + url.searchParams.toString();
+                                needsReload = true;
+                                console.log('已更新 script 版本號:', script.src);
+                            }
+                        } catch (e) {
+                            // 如果 URL 解析失敗，嘗試簡單的字串替換
+                            if (!src.includes('v=' + timestamp)) {
+                                const separator = src.includes('?') ? '&' : '?';
+                                const newSrc = src.replace(/[?&]v=\d+/, '') + separator + 'v=' + timestamp;
+                                script.src = newSrc;
+                                needsReload = true;
+                                console.log('已更新 script 版本號 (字串替換):', script.src);
+                            }
+                        }
+                    }
+                });
+                
+                if (needsReload) {
+                    console.log('已更新所有 JavaScript 文件（包括 config.js）版本號，重新載入頁面以清除快取...');
+                    // 強制重新載入（不使用快取），此時 URL 已經沒有 nocache 參數
+                    setTimeout(function() {
+                        window.location.reload(true);
+                    }, 50);
+                } else {
+                    console.log('所有 JavaScript 文件版本號已是最新，無需重新載入');
+                }
+            }
+        })();
+    </script>
 </head>
 <body>
     <div class="container">
@@ -42,6 +97,15 @@
             <div id="calendarGrid" class="calendar-grid"></div>
         </div>
 
+        <!-- 非工作日說明 -->
+        <div class="non-working-days-section">
+            <h3 class="non-working-days-title">
+                <span class="non-working-days-icon">📅</span>
+                非工作日說明
+            </h3>
+            <div id="nonWorkingDaysInfo" class="non-working-days-items"></div>
+        </div>
+
         <!-- 圖例 -->
         <div class="legend-section">
             <h3 class="legend-title">
@@ -75,10 +139,10 @@
     <!-- 引入配置檔案（必須最先載入） -->
     <script src="js/config.js?v=2"></script>
     <!-- 引入自訂模組 -->
-    <script src="js/excel-reader.js?v=24"></script>
-    <script src="js/data-processor.js?v=24"></script>
-    <script src="js/calendar.js?v=24"></script>
-    <script src="js/main.js?v=23"></script>
+    <script src="js/excel-reader.js?v=30"></script>
+    <script src="js/data-processor.js?v=30"></script>
+    <script src="js/calendar.js?v=30"></script>
+    <script src="js/main.js?v=29"></script>
 </body>
 </html>
 
