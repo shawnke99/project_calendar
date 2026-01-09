@@ -1,0 +1,38 @@
+# Excel 臨時文件
+resource/~$*.xlsx
+resource/~$*.xls
+*.tmp
+
+# 系統文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 編輯器文件
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node.js（如果未來使用）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# 環境變數文件
+.env
+.env.local
+
+# 日誌文件
+*.log
+
+# 快取文件
+.cache/
+*.cache
+
