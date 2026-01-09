@@ -139,15 +139,21 @@ class ExcelReader {
             headerRowIndex = 0;
         }
 
-        console.log('找到的標題列（第', headerRowIndex + 1, '列）:', headers);
+        if (this.config.debug?.showConsoleLogs) {
+            console.log('找到的標題列（第', headerRowIndex + 1, '列）:', headers);
+        }
         
         // 找出關鍵欄位的索引
         const headerMap = this.mapHeaders(headers);
-        console.log('欄位映射:', headerMap);
+        if (this.config.debug?.showConsoleLogs) {
+            console.log('欄位映射:', headerMap);
+        }
 
         // 如果找不到關鍵欄位，嘗試更寬鬆的匹配
         if (!headerMap.environment && !headerMap.task) {
-            console.warn('無法自動識別欄位，嘗試使用前幾列作為資料');
+            if (this.config.debug?.showConsoleLogs) {
+                console.warn('無法自動識別欄位，嘗試使用前幾列作為資料');
+            }
             // 嘗試將前幾列作為資料處理
             for (let i = headerRowIndex + 1; i < Math.min(headerRowIndex + 10, jsonData.length); i++) {
                 const row = jsonData[i];
@@ -172,9 +178,11 @@ class ExcelReader {
             }
         }
 
-        console.log('解析後的資料筆數:', result.length);
-        if (result.length > 0) {
-            console.log('第一筆資料範例:', result[0]);
+        if (this.config.debug?.showConsoleLogs) {
+            console.log('解析後的資料筆數:', result.length);
+            if (result.length > 0) {
+                console.log('第一筆資料範例:', result[0]);
+            }
         }
 
         if (result.length === 0) {
@@ -453,36 +461,98 @@ class ExcelReader {
             const trimmed = dateValue.trim();
             if (!trimmed) return null;
 
-            // 嘗試多種日期格式
-            const dateFormats = [
-                /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/, // YYYY-MM-DD 或 YYYY/MM/DD
-                /^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/, // MM-DD-YYYY 或 MM/DD/YYYY
+            // 使用配置中的日期格式
+            const inputFormats = this.config.dateFormat?.input || [
+                'YYYY-MM-DD', 
+                'YYYY/MM/DD', 
+                'MM-DD-YYYY', 
+                'MM/DD/YYYY'
             ];
 
-            for (const format of dateFormats) {
-                const match = trimmed.match(format);
-                if (match) {
-                    let year, month, day;
-                    if (match[1].length === 4) {
-                        // YYYY-MM-DD 格式
-                        year = parseInt(match[1]);
-                        month = parseInt(match[2]) - 1;
-                        day = parseInt(match[3]);
-                    } else {
-                        // MM-DD-YYYY 格式
-                        month = parseInt(match[1]) - 1;
-                        day = parseInt(match[2]);
-                        year = parseInt(match[3]);
-                    }
-                    return new Date(year, month, day);
+            // 嘗試使用配置的格式解析
+            for (const format of inputFormats) {
+                const parsed = this.parseDateByFormat(trimmed, format);
+                if (parsed) {
+                    return parsed;
                 }
             }
 
-            // 使用 Date 解析
+            // 如果配置格式都失敗，使用 Date 原生解析作為後備
             const date = new Date(trimmed);
             if (!isNaN(date.getTime())) {
                 return date;
             }
+        }
+
+        return null;
+    }
+
+    /**
+     * 根據指定格式解析日期字串
+     * @param {string} dateString - 日期字串
+     * @param {string} format - 日期格式（如 'YYYY-MM-DD', 'MM/DD/YYYY'）
+     * @returns {Date|null}
+     */
+    parseDateByFormat(dateString, format) {
+        // 轉換格式字串為正則表達式
+        // YYYY -> 4位數字年份
+        // MM -> 1-2位數字月份
+        // DD -> 1-2位數字日期
+        const formatPattern = format
+            .replace(/YYYY/g, '(\\d{4})')
+            .replace(/MM/g, '(\\d{1,2})')
+            .replace(/DD/g, '(\\d{1,2})')
+            .replace(/\//g, '\\/')
+            .replace(/-/g, '\\-');
+
+        const regex = new RegExp(`^${formatPattern}$`);
+        const match = dateString.match(regex);
+
+        if (!match) {
+            return null;
+        }
+
+        // 找出格式中 YYYY, MM, DD 的位置
+        const yearIndex = format.indexOf('YYYY');
+        const monthIndex = format.indexOf('MM');
+        const dayIndex = format.indexOf('DD');
+
+        // 計算在 match 陣列中的索引（考慮正則表達式的捕獲組）
+        let year, month, day;
+        let captureIndex = 1; // match[0] 是完整匹配
+
+        // 按順序提取年、月、日
+        const parts = [];
+        for (let i = 0; i < format.length; i++) {
+            if (format.substr(i, 4) === 'YYYY') {
+                parts.push({ type: 'year', index: captureIndex, pos: i });
+                captureIndex++;
+                i += 3; // 跳過 YYYY
+            } else if (format.substr(i, 2) === 'MM') {
+                parts.push({ type: 'month', index: captureIndex, pos: i });
+                captureIndex++;
+                i += 1; // 跳過 MM
+            } else if (format.substr(i, 2) === 'DD') {
+                parts.push({ type: 'day', index: captureIndex, pos: i });
+                captureIndex++;
+                i += 1; // 跳過 DD
+            }
+        }
+
+        // 按位置排序，確定順序
+        parts.sort((a, b) => a.pos - b.pos);
+
+        // 提取值
+        year = parseInt(match[parts.find(p => p.type === 'year').index]);
+        month = parseInt(match[parts.find(p => p.type === 'month').index]) - 1; // 月份從 0 開始
+        day = parseInt(match[parts.find(p => p.type === 'day').index]);
+
+        // 驗證日期有效性
+        const date = new Date(year, month, day);
+        if (date.getFullYear() === year && 
+            date.getMonth() === month && 
+            date.getDate() === day) {
+            return date;
         }
 
         return null;

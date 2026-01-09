@@ -165,7 +165,9 @@ class DataProcessor {
         this.environments.forEach((env, envName) => {
             env.tasks.forEach((task, taskIndex) => {
                 if (!task.startDate) {
-                    console.warn('任務缺少開始日期:', task);
+                    if (this.config.debug?.showConsoleLogs) {
+                        console.warn('任務缺少開始日期:', task);
+                    }
                     return;
                 }
 
@@ -173,7 +175,9 @@ class DataProcessor {
                 const dateRange = this.getDateRange(task.startDate, endDate);
                 
                 if (!dateRange || dateRange.length === 0) {
-                    console.warn('無法產生日期範圍:', {startDate: task.startDate, endDate});
+                    if (this.config.debug?.showConsoleLogs) {
+                        console.warn('無法產生日期範圍:', {startDate: task.startDate, endDate});
+                    }
                     return;
                 }
                 

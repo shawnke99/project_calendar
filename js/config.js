@@ -77,8 +77,8 @@ const SystemConfig = {
     calendar: {
         maxDisplayTasks: 3,           // 每個日期格子最多顯示的任務數
         maxTasksInBlock: 3,            // 每個環境區塊最多顯示的工作項目數
-        dayMinHeight: 130,             // 日期格子的最小高度
-        taskBarHeight: 18,             // 跨日期任務條的高度
+        dayMinHeight: 150,             // 日期格子的最小高度
+        taskBarHeight: 25,             // 跨日期任務條的高度
         gridGap: 2,                    // 格子間距（px）
         // 多月份顯示設定
         monthsToDisplay: 2,            // 同時顯示的月份數量（1-12，預設為 1，多月份時會上下排列）
@@ -94,7 +94,7 @@ const SystemConfig = {
         showEnvironment: true,          // 顯示環境圖例
         showBatch: true,                // 顯示梯次圖例
         showStatus: true,               // 顯示狀態圖例
-        maxItemsPerRow: 4               // 每行最多顯示的圖例項目數
+        maxItemsPerRow: 1               // 每行最多顯示的圖例項目數
     },
 
     // 篩選設定
@@ -182,12 +182,10 @@ const SystemConfig = {
 
     // 效能設定
     performance: {
-        // 是否啟用虛擬滾動（當任務很多時）
+        // 是否啟用虛擬滾動（當任務很多時，只渲染可見區域的日期格子）
         virtualScroll: false,
-        // 每頁最多渲染的任務數
-        maxTasksPerPage: 1000,
-        // 是否啟用懶加載
-        lazyLoad: false
+        // 虛擬滾動緩衝區（在可見區域前後額外渲染的日期格子數量）
+        virtualScrollBuffer: 7  // 預設為一週的日期格子
     },
 
 

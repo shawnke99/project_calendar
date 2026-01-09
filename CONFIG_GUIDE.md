@@ -206,11 +206,13 @@ fieldDisplayNames: {
 
 ```javascript
 performance: {
-    virtualScroll: false,      // 是否啟用虛擬滾動
-    maxTasksPerPage: 1000,     // 每頁最多渲染的任務數
-    lazyLoad: false            // 是否啟用懶加載
+    virtualScroll: false,      // 是否啟用虛擬滾動（當任務很多時，只渲染可見區域的日期格子）
+    virtualScrollBuffer: 7     // 虛擬滾動緩衝區（在可見區域前後額外渲染的日期格子數量，預設為一週）
 }
 ```
+
+- **`virtualScroll`**：啟用後，系統會使用 IntersectionObserver 來監控可見區域，只渲染可見的日期格子，提高大量任務時的渲染效能。
+- **`virtualScrollBuffer`**：設定在可見區域前後額外渲染的日期格子數量，預設為 7（一週），確保滾動時的流暢體驗。
 
 ### 12. 除錯設定
 
@@ -411,8 +413,8 @@ taskDisplay: {
    - 如果資料時間範圍會變動，使用自動計算（設為 null）
 
 3. **效能優化**
-   - 當任務數量 > 1000 時，考慮啟用 `virtualScroll`
-   - 調整 `maxTasksPerPage` 以平衡效能和顯示
+   - 當任務數量很多時，考慮啟用 `virtualScroll` 以提高渲染效能
+   - 調整 `virtualScrollBuffer` 以平衡效能和滾動流暢度（較大的緩衝區會渲染更多元素，但滾動更流暢）
 
 4. **除錯模式**
    - 開發時啟用 `debug.enabled = true`

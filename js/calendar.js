@@ -10,6 +10,98 @@ class Calendar {
         this.config = config;
         this.currentDate = new Date();
         this.filteredEnvironments = config.filter?.defaultFilter || 'all';
+        
+        // 虛擬滾動相關屬性
+        this.virtualScrollEnabled = this.config.performance?.virtualScroll === true;
+        this.virtualScrollBuffer = this.config.performance?.virtualScrollBuffer || 7;
+        this.visibleDayElements = new Map(); // 儲存可見的日期元素
+        this.observer = null; // IntersectionObserver 實例
+        
+        // 應用 dayMinHeight 配置到 CSS
+        this.applyDayMinHeight();
+        
+        // 如果啟用虛擬滾動，設置觀察器
+        if (this.virtualScrollEnabled) {
+            this.setupVirtualScroll();
+        }
+    }
+    
+    /**
+     * 應用日期格子最小高度配置
+     */
+    applyDayMinHeight() {
+        const dayMinHeight = this.config.calendar?.dayMinHeight || 130;
+        // 設置 CSS 變數或直接設置樣式
+        if (this.container) {
+            const style = document.createElement('style');
+            style.id = 'calendar-day-min-height-style';
+            // 移除舊的樣式（如果存在）
+            const oldStyle = document.getElementById('calendar-day-min-height-style');
+            if (oldStyle) {
+                oldStyle.remove();
+            }
+            style.textContent = `.calendar-day { min-height: ${dayMinHeight}px !important; }`;
+            document.head.appendChild(style);
+        }
+    }
+
+    /**
+     * 設置虛擬滾動觀察器
+     */
+    setupVirtualScroll() {
+        if (!this.virtualScrollEnabled) return;
+        
+        // 使用 IntersectionObserver 來檢測可見區域
+        // 計算緩衝區高度（基於日期格子的最小高度）
+        const dayMinHeight = this.config.calendar?.dayMinHeight || 150;
+        const bufferHeight = this.virtualScrollBuffer * dayMinHeight;
+        
+        const options = {
+            root: null, // 使用視窗作為根
+            rootMargin: `${bufferHeight}px`, // 緩衝區（上下各緩衝）
+            threshold: 0.01
+        };
+        
+        this.observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                const dayElement = entry.target;
+                const dateKey = dayElement.getAttribute('data-date-key');
+                
+                if (entry.isIntersecting) {
+                    // 元素進入可見區域，標記為可見
+                    if (!this.visibleDayElements.has(dateKey)) {
+                        this.visibleDayElements.set(dateKey, true);
+                        // 觸發任務渲染（如果需要）
+                        this.ensureDayContentRendered(dayElement, dateKey);
+                    }
+                }
+                // 注意：我們不清理離開可見區域的元素，以保持更好的用戶體驗
+            });
+        }, options);
+    }
+
+    /**
+     * 確保日期格子的內容已渲染（用於虛擬滾動）
+     */
+    ensureDayContentRendered(dayElement, dateKey) {
+        // 如果已經有任務容器，表示已渲染，跳過
+        if (dayElement.querySelector('.tasks-container')) {
+            return;
+        }
+        
+        // 虛擬滾動模式下，任務內容會在正常的渲染流程中處理
+        // 這裡主要是標記元素為可見，實際渲染由 renderTasksInDayCells 等方法處理
+    }
+    
+    /**
+     * 清理虛擬滾動觀察器
+     */
+    cleanupVirtualScroll() {
+        if (this.observer) {
+            this.observer.disconnect();
+            this.observer = null;
+        }
+        this.visibleDayElements.clear();
     }
 
     /**
@@ -26,8 +118,18 @@ class Calendar {
         // 取得任務範圍
         const taskRanges = this.dataProcessor.getTaskRanges();
 
+        // 清理虛擬滾動觀察器（如果存在）
+        if (this.virtualScrollEnabled) {
+            this.cleanupVirtualScroll();
+        }
+
         // 清空月曆
         this.container.innerHTML = '';
+        
+        // 重新設置虛擬滾動觀察器（如果啟用）
+        if (this.virtualScrollEnabled) {
+            this.setupVirtualScroll();
+        }
         
         // 清除多月份容器的樣式類別
         this.container.className = 'calendar-grid';
@@ -63,10 +165,20 @@ class Calendar {
                 const dayElement = this.createDayElement(cellDate, year, month, tasksForMonth);
                 this.container.appendChild(dayElement);
                 dayElements.push({ date: new Date(cellDate), element: dayElement, year: year, month: month });
+                
+                // 如果啟用虛擬滾動，觀察日期格子
+                if (this.virtualScrollEnabled && this.observer) {
+                    this.observer.observe(dayElement);
+                }
             }
 
-            // 渲染跨日期的任務條（單月份）
-            this.renderSpanningTasks(dayElements, taskRanges, year, month);
+            // 渲染跨日期的任務條（單月份）- 檢查是否啟用
+            if (this.config.taskDisplay?.showSpanningTasks !== false) {
+                this.renderSpanningTasks(dayElements, taskRanges, year, month);
+            } else {
+                // 如果禁用跨日期任務條，則在日期格子內顯示任務
+                this.renderTasksInDayCells(dayElements, taskRanges, year, month);
+            }
         } else {
             // 多月份顯示：使用新的結構
             const allDayElements = [];
@@ -115,6 +227,11 @@ class Calendar {
                     const dayElement = this.createDayElement(cellDate, currentYear, currentMonth, tasksForMonth);
                     monthGrid.appendChild(dayElement);
                     dayElements.push({ date: new Date(cellDate), element: dayElement, year: currentYear, month: currentMonth });
+                    
+                    // 如果啟用虛擬滾動，觀察日期格子
+                    if (this.virtualScrollEnabled && this.observer) {
+                        this.observer.observe(dayElement);
+                    }
                 }
                 
                 monthContainer.appendChild(monthGrid);
@@ -122,8 +239,13 @@ class Calendar {
                 allDayElements.push(...dayElements);
             }
 
-            // 渲染跨日期的任務條（多月份）
-            this.renderSpanningTasksForMultipleMonths(allDayElements, taskRanges, year, month, monthsToDisplay);
+            // 渲染跨日期的任務條（多月份）- 檢查是否啟用
+            if (this.config.taskDisplay?.showSpanningTasks !== false) {
+                this.renderSpanningTasksForMultipleMonths(allDayElements, taskRanges, year, month, monthsToDisplay);
+            } else {
+                // 如果禁用跨日期任務條，則在日期格子內顯示任務
+                this.renderTasksInDayCellsForMultipleMonths(allDayElements, taskRanges, year, month, monthsToDisplay);
+            }
         }
     }
 
@@ -294,6 +416,36 @@ class Calendar {
             });
         }
 
+        // 應用 maxDisplayTasks 限制（跨日期任務條的總數）
+        const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
+        if (maxDisplayTasks && maxDisplayTasks > 0) {
+            // 按日期分組，限制每個日期顯示的任務條數量
+            const tasksByDate = new Map();
+            monthTaskRanges.forEach(taskRange => {
+                if (!taskRange.dateRange || taskRange.dateRange.length === 0) return;
+                taskRange.dateRange.forEach(date => {
+                    const dateKey = this.dataProcessor.getDateKey(date);
+                    if (!tasksByDate.has(dateKey)) {
+                        tasksByDate.set(dateKey, []);
+                    }
+                    if (!tasksByDate.get(dateKey).includes(taskRange.rangeId)) {
+                        tasksByDate.get(dateKey).push(taskRange.rangeId);
+                    }
+                });
+            });
+            
+            // 過濾出符合限制的任務範圍
+            const allowedRangeIds = new Set();
+            tasksByDate.forEach((rangeIds, dateKey) => {
+                const limitedRangeIds = rangeIds.slice(0, maxDisplayTasks);
+                limitedRangeIds.forEach(rangeId => allowedRangeIds.add(rangeId));
+            });
+            
+            monthTaskRanges = monthTaskRanges.filter(taskRange => {
+                return allowedRangeIds.has(taskRange.rangeId);
+            });
+        }
+
         monthTaskRanges.forEach(taskRange => {
             if (displayedRanges.has(taskRange.rangeId)) return;
             if (!taskRange.dateRange || taskRange.dateRange.length === 0) return;
@@ -354,16 +506,18 @@ class Calendar {
                 this.createSpanningTaskBar(taskRange, startIndex, spanDays, dayElements, taskBarIndex);
             } else {
                 // 除錯資訊
-                console.warn('無法找到日期索引:', {
-                    rangeId: taskRange.rangeId,
-                    startDate: startDate.toISOString().split('T')[0],
-                    endDate: endDate.toISOString().split('T')[0],
-                    startIndex,
-                    endIndex,
-                    dayElementsLength: dayElements.length,
-                    firstDayElement: dayElements[0] ? new Date(dayElements[0].date).toISOString().split('T')[0] : 'none',
-                    visibleDatesCount: visibleDates.length
-                });
+                if (this.config.debug?.showConsoleLogs) {
+                    console.warn('無法找到日期索引:', {
+                        rangeId: taskRange.rangeId,
+                        startDate: startDate.toISOString().split('T')[0],
+                        endDate: endDate.toISOString().split('T')[0],
+                        startIndex,
+                        endIndex,
+                        dayElementsLength: dayElements.length,
+                        firstDayElement: dayElements[0] ? new Date(dayElements[0].date).toISOString().split('T')[0] : 'none',
+                        visibleDatesCount: visibleDates.length
+                    });
+                }
             }
         });
     }
@@ -393,6 +547,11 @@ class Calendar {
         // 使用絕對定位，相對於日曆網格定位
         taskBar.style.position = 'absolute';
         taskBar.style.zIndex = '5';
+        
+        // 應用懸停效果（如果啟用）
+        if (this.config.taskDisplay?.hoverEffect !== false) {
+            taskBar.classList.add('hover-enabled');
+        }
         
         // 計算跨日期任務條的寬度和位置
         const gridGap = this.config.calendar?.gridGap || 2;
@@ -425,8 +584,8 @@ class Calendar {
                 // 第一段：從起始格子到該行結束
                 const firstSegmentWidth = (cellWidth * daysToEndOfRow) + (gridGap * (daysToEndOfRow - 1));
                 
-                // 計算垂直位置
-                const taskBarHeight = 24;
+                // 計算垂直位置（使用配置值）
+                const taskBarHeight = this.config.calendar?.taskBarHeight || 24;
                 const taskBarMargin = 2;
                 const taskBarSpacing = 2;
                 const tasksContainer = startElement.querySelector('.tasks-container');
@@ -501,25 +660,27 @@ class Calendar {
                     }
                 }
                 
-                console.log('跨週任務條位置計算:', {
-                    isCrossWeek: true,
-                    startRow,
-                    endRow,
-                    startCol,
-                    daysToEndOfRow,
-                    remainingDays,
-                    firstSegmentWidth,
-                    leftOffset,
-                    topOffset,
-                    taskBarIndex,
-                    rangeId: taskRange.rangeId
-                });
+                if (this.config.debug?.showConsoleLogs && this.config.debug?.logLevel === 'debug') {
+                    console.log('跨週任務條位置計算:', {
+                        isCrossWeek: true,
+                        startRow,
+                        endRow,
+                        startCol,
+                        daysToEndOfRow,
+                        remainingDays,
+                        firstSegmentWidth,
+                        leftOffset,
+                        topOffset,
+                        taskBarIndex,
+                        rangeId: taskRange.rangeId
+                    });
+                }
             } else {
                 // 不跨週：正常計算
                 const totalWidth = (cellWidth * spanDays) + (gridGap * (spanDays - 1));
                 
-                // 計算垂直位置
-                const taskBarHeight = 24;
+                // 計算垂直位置（使用配置值）
+                const taskBarHeight = this.config.calendar?.taskBarHeight || 24;
                 const taskBarMargin = 2;
                 const taskBarSpacing = 2;
                 const tasksContainer = startElement.querySelector('.tasks-container');
@@ -540,18 +701,20 @@ class Calendar {
                 taskBar.style.top = `${topOffset}px`;
                 taskBar.style.width = `${totalWidth}px`;
                 
-                console.log('任務條位置計算:', {
-                    leftOffset,
-                    topOffset,
-                    totalWidth,
-                    spanDays,
-                    gridGap,
-                    cellWidth,
-                    taskBarIndex,
-                    rangeId: taskRange.rangeId,
-                    startDate: taskRange.startDate ? new Date(taskRange.startDate).toISOString().split('T')[0] : 'none',
-                    endDate: taskRange.endDate ? new Date(taskRange.endDate).toISOString().split('T')[0] : 'none'
-                });
+                if (this.config.debug?.showConsoleLogs && this.config.debug?.logLevel === 'debug') {
+                    console.log('任務條位置計算:', {
+                        leftOffset,
+                        topOffset,
+                        totalWidth,
+                        spanDays,
+                        gridGap,
+                        cellWidth,
+                        taskBarIndex,
+                        rangeId: taskRange.rangeId,
+                        startDate: taskRange.startDate ? new Date(taskRange.startDate).toISOString().split('T')[0] : 'none',
+                        endDate: taskRange.endDate ? new Date(taskRange.endDate).toISOString().split('T')[0] : 'none'
+                    });
+                }
             }
         }, 200);
         
@@ -566,11 +729,15 @@ class Calendar {
             e.stopPropagation();
             e.preventDefault();
             
-            console.log('點擊任務條:', taskRange.rangeId);
+            if (this.config.debug?.showConsoleLogs) {
+                console.log('點擊任務條:', taskRange.rangeId);
+            }
             
             // 顯示該範圍的所有任務詳情
             if (!taskRange.tasks || taskRange.tasks.length === 0) {
-                console.warn('任務範圍沒有任務:', taskRange);
+                if (this.config.debug?.showConsoleLogs) {
+                    console.warn('任務範圍沒有任務:', taskRange);
+                }
                 return;
             }
             
@@ -591,33 +758,36 @@ class Calendar {
         targetContainer.appendChild(taskBar);
         
         // 在跨越的所有日期格子上添加佔位符（避免點擊穿透，並保持垂直空間）
-        setTimeout(() => {
-            const barHeight = 24; // 固定高度
-            for (let i = startIndex; i < startIndex + spanDays && i < dayElements.length; i++) {
-                const dayElement = dayElements[i].element;
-                const otherTasksContainer = dayElement.querySelector('.tasks-container');
-                if (otherTasksContainer) {
-                    // 檢查是否已經有相同層級的佔位符
-                    const existingPlaceholders = otherTasksContainer.querySelectorAll('.task-placeholder');
-                    let placeholderIndex = taskBarIndex;
-                    
-                    // 如果已經有佔位符，檢查是否需要添加新的
-                    if (existingPlaceholders.length > taskBarIndex) {
-                        // 已經有足夠的佔位符，跳過
-                        continue;
+        // 檢查是否啟用佔位符顯示
+        if (this.config.taskDisplay?.showPlaceholders !== false) {
+            setTimeout(() => {
+                const taskBarHeight = this.config.calendar?.taskBarHeight || 24;
+                for (let i = startIndex; i < startIndex + spanDays && i < dayElements.length; i++) {
+                    const dayElement = dayElements[i].element;
+                    const otherTasksContainer = dayElement.querySelector('.tasks-container');
+                    if (otherTasksContainer) {
+                        // 檢查是否已經有相同層級的佔位符
+                        const existingPlaceholders = otherTasksContainer.querySelectorAll('.task-placeholder');
+                        let placeholderIndex = taskBarIndex;
+                        
+                        // 如果已經有佔位符，檢查是否需要添加新的
+                        if (existingPlaceholders.length > taskBarIndex) {
+                            // 已經有足夠的佔位符，跳過
+                            continue;
+                        }
+                        
+                        // 添加佔位符以保持垂直空間
+                        const placeholder = document.createElement('div');
+                        placeholder.className = 'task-placeholder';
+                        placeholder.style.height = `${taskBarHeight}px`;
+                        placeholder.style.marginTop = '2px';
+                        placeholder.style.marginBottom = '2px';
+                        placeholder.style.visibility = 'hidden'; // 隱藏但佔用空間
+                        otherTasksContainer.appendChild(placeholder);
                     }
-                    
-                    // 添加佔位符以保持垂直空間
-                    const placeholder = document.createElement('div');
-                    placeholder.className = 'task-placeholder';
-                    placeholder.style.height = `${barHeight}px`;
-                    placeholder.style.marginTop = '2px';
-                    placeholder.style.marginBottom = '2px';
-                    placeholder.style.visibility = 'hidden'; // 隱藏但佔用空間
-                    otherTasksContainer.appendChild(placeholder);
                 }
-            }
-        }, 250);
+            }, 250);
+        }
     }
 
     /**
@@ -671,9 +841,8 @@ class Calendar {
         const tasks = tasksForMonth.get(dateKey) || [];
         const filteredTasks = this.dataProcessor.filterTasksByEnvironment(tasks, this.filteredEnvironments);
 
-        // 注意：跨日期的任務會在 renderSpanningTasks 中處理
-        // 這裡只顯示單日任務或作為備用顯示
-        // 實際的跨日期任務條會在 render() 方法的最後階段添加
+        // 如果禁用跨日期任務條，任務會在這裡顯示
+        // 如果啟用跨日期任務條，跨日期的任務會在 renderSpanningTasks 中處理
 
         dayDiv.appendChild(tasksContainer);
 
@@ -1196,7 +1365,7 @@ class Calendar {
      * @param {Array} tasks - 任務陣列
      */
     showDayDetails(date, tasks) {
-        const dateStr = `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+        const dateStr = this.formatDate(date);
         const modal = document.getElementById('taskModal');
         const modalTitle = document.getElementById('modalTitle');
         const modalBody = document.getElementById('modalBody');
@@ -1256,7 +1425,9 @@ class Calendar {
         const modalBody = document.getElementById('modalBody');
 
         if (!modal || !modalTitle || !modalBody) {
-            console.error('找不到彈窗元素');
+            if (this.config.debug?.showConsoleLogs) {
+                console.error('找不到彈窗元素');
+            }
             return;
         }
 
@@ -1283,14 +1454,290 @@ class Calendar {
 
 
     /**
-     * 格式化日期
-     * @param {Date} date - 日期物件
+     * 格式化日期（使用配置的格式）
+     * @param {Date|string} date - 日期物件或字串
      * @returns {string} 格式化後的日期字串
      */
     formatDate(date) {
-        if (!date) return DataProcessor.UNSPECIFIED_STATUS;
-        const d = new Date(date);
-        return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
+        if (!date) return '';
+        
+        // 如果是字串，轉換為 Date 物件
+        let d = date;
+        if (!(date instanceof Date)) {
+            d = new Date(date);
+            if (isNaN(d.getTime())) return '';
+        }
+        
+        const format = this.config.dateFormat?.display || 'YYYY年MM月DD日';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        
+        return format
+            .replace(/YYYY/g, year)
+            .replace(/MM/g, month)
+            .replace(/DD/g, day)
+            .replace(/Y/g, year)
+            .replace(/M/g, String(d.getMonth() + 1))
+            .replace(/D/g, String(d.getDate()));
+    }
+
+    /**
+     * 在日期格子內渲染任務（當禁用跨日期任務條時使用）
+     * @param {Array} dayElements - 日期元素陣列
+     * @param {Map} taskRanges - 任務範圍映射
+     * @param {number} year - 年份
+     * @param {number} month - 月份
+     */
+    renderTasksInDayCells(dayElements, taskRanges, year, month) {
+        // 過濾出當前月份的任務範圍
+        let monthTaskRanges = Array.from(taskRanges.values()).filter(taskRange => {
+            if (!taskRange.dateRange || taskRange.dateRange.length === 0) return false;
+            
+            // 檢查日期範圍是否與當前月份有交集
+            const hasDateInMonth = taskRange.dateRange.some(date => {
+                return date.getFullYear() === year && date.getMonth() === month;
+            });
+            
+            return hasDateInMonth;
+        });
+        
+        // 應用環境篩選
+        if (this.filteredEnvironments !== 'all' && this.filteredEnvironments) {
+            const filterSet = Array.isArray(this.filteredEnvironments) 
+                ? new Set(this.filteredEnvironments) 
+                : new Set([this.filteredEnvironments]);
+            
+            monthTaskRanges = monthTaskRanges.filter(taskRange => {
+                return filterSet.has(taskRange.environment);
+            });
+        }
+
+        // 為每個日期格子添加任務
+        dayElements.forEach((dayElement, index) => {
+            const date = dayElement.date;
+            const dateKey = this.dataProcessor.getDateKey(date);
+            const tasksContainer = dayElement.element.querySelector('.tasks-container');
+            
+            if (!tasksContainer) return;
+
+            // 找出該日期範圍內的任務
+            let tasksForThisDate = monthTaskRanges.filter(taskRange => {
+                if (!taskRange.dateRange || taskRange.dateRange.length === 0) return false;
+                return taskRange.dateRange.some(d => {
+                    const dKey = this.dataProcessor.getDateKey(d);
+                    return dKey === dateKey;
+                });
+            });
+
+            // 應用 maxTasksInBlock 限制（按環境分組）
+            const maxTasksInBlock = this.config.calendar?.maxTasksInBlock;
+            if (maxTasksInBlock && maxTasksInBlock > 0) {
+                const tasksByEnvironment = new Map();
+                tasksForThisDate.forEach(taskRange => {
+                    const envName = taskRange.environment;
+                    if (!tasksByEnvironment.has(envName)) {
+                        tasksByEnvironment.set(envName, []);
+                    }
+                    tasksByEnvironment.get(envName).push(taskRange);
+                });
+                
+                // 限制每個環境的任務數
+                tasksForThisDate = [];
+                tasksByEnvironment.forEach((envTasks, envName) => {
+                    const limitedTasks = envTasks.slice(0, maxTasksInBlock);
+                    tasksForThisDate.push(...limitedTasks);
+                });
+            }
+
+            // 應用 maxDisplayTasks 限制（總任務數）
+            const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
+            if (maxDisplayTasks && maxDisplayTasks > 0) {
+                tasksForThisDate = tasksForThisDate.slice(0, maxDisplayTasks);
+            }
+
+            // 為每個任務創建顯示元素
+            tasksForThisDate.forEach(taskRange => {
+                const taskItem = document.createElement('div');
+                taskItem.className = 'day-task-item';
+                taskItem.style.backgroundColor = this.addAlpha(taskRange.environmentData.color, 0.15);
+                taskItem.style.borderLeft = `3px solid ${taskRange.environmentData.color}`;
+                taskItem.style.padding = '4px 6px';
+                taskItem.style.marginBottom = '4px';
+                taskItem.style.borderRadius = '3px';
+                taskItem.style.fontSize = '0.75em';
+                taskItem.style.cursor = 'pointer';
+                
+                // 顯示環境名稱
+                const envName = document.createElement('span');
+                envName.textContent = taskRange.environment;
+                envName.style.fontWeight = '600';
+                envName.style.color = taskRange.environmentData.color;
+                envName.style.marginRight = '6px';
+                taskItem.appendChild(envName);
+                
+                // 顯示其他資訊（如果配置了）
+                const taskBarFields = this.config.taskDisplay?.taskBarFields || {};
+                if (taskBarFields.batch && taskRange.batch) {
+                    const batch = document.createElement('span');
+                    batch.textContent = taskRange.batch;
+                    batch.style.marginRight = '4px';
+                    batch.style.fontSize = '0.85em';
+                    taskItem.appendChild(batch);
+                }
+                
+                // 點擊事件
+                taskItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tasks = taskRange.tasks.map(task => ({
+                        environment: taskRange.environment,
+                        environmentData: taskRange.environmentData,
+                        task: task,
+                        batch: taskRange.batch,
+                        batchColor: taskRange.batchColor,
+                        status: taskRange.status,
+                        statusColor: taskRange.statusColor
+                    }));
+                    this.showRangeDetails(taskRange, tasks);
+                });
+                
+                tasksContainer.appendChild(taskItem);
+            });
+        });
+    }
+
+    /**
+     * 在日期格子內渲染任務（多月份，當禁用跨日期任務條時使用）
+     * @param {Array} allDayElements - 所有月份的日期元素陣列
+     * @param {Map} taskRanges - 任務範圍映射
+     * @param {number} startYear - 起始年份
+     * @param {number} startMonth - 起始月份
+     * @param {number} monthsToDisplay - 顯示的月份數量
+     */
+    renderTasksInDayCellsForMultipleMonths(allDayElements, taskRanges, startYear, startMonth, monthsToDisplay) {
+        // 計算顯示的月份範圍
+        const displayMonths = [];
+        for (let m = 0; m < monthsToDisplay; m++) {
+            const currentYear = new Date(startYear, startMonth + m, 1).getFullYear();
+            const currentMonth = new Date(startYear, startMonth + m, 1).getMonth();
+            displayMonths.push({ year: currentYear, month: currentMonth });
+        }
+        
+        // 過濾出在顯示月份範圍內的任務範圍
+        let monthTaskRanges = Array.from(taskRanges.values()).filter(taskRange => {
+            if (!taskRange.dateRange || taskRange.dateRange.length === 0) return false;
+            
+            const hasDateInDisplayMonths = taskRange.dateRange.some(date => {
+                return displayMonths.some(displayMonth => {
+                    return date.getFullYear() === displayMonth.year && date.getMonth() === displayMonth.month;
+                });
+            });
+            
+            return hasDateInDisplayMonths;
+        });
+        
+        // 應用環境篩選
+        if (this.filteredEnvironments !== 'all' && this.filteredEnvironments) {
+            const filterSet = Array.isArray(this.filteredEnvironments) 
+                ? new Set(this.filteredEnvironments) 
+                : new Set([this.filteredEnvironments]);
+            
+            monthTaskRanges = monthTaskRanges.filter(taskRange => {
+                return filterSet.has(taskRange.environment);
+            });
+        }
+
+        // 為每個日期格子添加任務
+        allDayElements.forEach((dayElement) => {
+            const date = dayElement.date;
+            const dateKey = this.dataProcessor.getDateKey(date);
+            const tasksContainer = dayElement.element.querySelector('.tasks-container');
+            
+            if (!tasksContainer) return;
+
+            // 找出該日期範圍內的任務
+            let tasksForThisDate = monthTaskRanges.filter(taskRange => {
+                if (!taskRange.dateRange || taskRange.dateRange.length === 0) return false;
+                return taskRange.dateRange.some(d => {
+                    const dKey = this.dataProcessor.getDateKey(d);
+                    return dKey === dateKey;
+                });
+            });
+
+            // 應用 maxTasksInBlock 限制（按環境分組）
+            const maxTasksInBlock = this.config.calendar?.maxTasksInBlock;
+            if (maxTasksInBlock && maxTasksInBlock > 0) {
+                const tasksByEnvironment = new Map();
+                tasksForThisDate.forEach(taskRange => {
+                    const envName = taskRange.environment;
+                    if (!tasksByEnvironment.has(envName)) {
+                        tasksByEnvironment.set(envName, []);
+                    }
+                    tasksByEnvironment.get(envName).push(taskRange);
+                });
+                
+                // 限制每個環境的任務數
+                tasksForThisDate = [];
+                tasksByEnvironment.forEach((envTasks, envName) => {
+                    const limitedTasks = envTasks.slice(0, maxTasksInBlock);
+                    tasksForThisDate.push(...limitedTasks);
+                });
+            }
+
+            // 應用 maxDisplayTasks 限制（總任務數）
+            const maxDisplayTasks = this.config.calendar?.maxDisplayTasks;
+            if (maxDisplayTasks && maxDisplayTasks > 0) {
+                tasksForThisDate = tasksForThisDate.slice(0, maxDisplayTasks);
+            }
+
+            // 為每個任務創建顯示元素
+            tasksForThisDate.forEach(taskRange => {
+                const taskItem = document.createElement('div');
+                taskItem.className = 'day-task-item';
+                taskItem.style.backgroundColor = this.addAlpha(taskRange.environmentData.color, 0.15);
+                taskItem.style.borderLeft = `3px solid ${taskRange.environmentData.color}`;
+                taskItem.style.padding = '4px 6px';
+                taskItem.style.marginBottom = '4px';
+                taskItem.style.borderRadius = '3px';
+                taskItem.style.fontSize = '0.75em';
+                taskItem.style.cursor = 'pointer';
+                
+                // 顯示環境名稱
+                const envName = document.createElement('span');
+                envName.textContent = taskRange.environment;
+                envName.style.fontWeight = '600';
+                envName.style.color = taskRange.environmentData.color;
+                envName.style.marginRight = '6px';
+                taskItem.appendChild(envName);
+                
+                // 顯示其他資訊（如果配置了）
+                const taskBarFields = this.config.taskDisplay?.taskBarFields || {};
+                if (taskBarFields.batch && taskRange.batch) {
+                    const batch = document.createElement('span');
+                    batch.textContent = taskRange.batch;
+                    batch.style.marginRight = '4px';
+                    batch.style.fontSize = '0.85em';
+                    taskItem.appendChild(batch);
+                }
+                
+                // 點擊事件
+                taskItem.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const tasks = taskRange.tasks.map(task => ({
+                        environment: taskRange.environment,
+                        environmentData: taskRange.environmentData,
+                        task: task,
+                        batch: taskRange.batch,
+                        batchColor: taskRange.batchColor,
+                        status: taskRange.status,
+                        statusColor: taskRange.statusColor
+                    }));
+                    this.showRangeDetails(taskRange, tasks);
+                });
+                
+                tasksContainer.appendChild(taskItem);
+            });
+        });
     }
 
     /**

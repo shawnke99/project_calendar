@@ -9,6 +9,82 @@ let dataProcessor;
 let calendar;
 
 /**
+ * 日誌工具函數
+ * 根據配置的 logLevel 過濾日誌輸出
+ */
+const Logger = {
+    /**
+     * 獲取日誌級別的優先級
+     * @param {string} level - 日誌級別
+     * @returns {number} 優先級（數字越大，級別越高）
+     */
+    getLevelPriority(level) {
+        const levels = {
+            'debug': 0,
+            'info': 1,
+            'warn': 2,
+            'error': 3
+        };
+        return levels[level] || 1;
+    },
+
+    /**
+     * 檢查是否應該輸出日誌
+     * @param {string} level - 日誌級別
+     * @returns {boolean}
+     */
+    shouldLog(level) {
+        const config = SystemConfig.debug || {};
+        if (!config.showConsoleLogs) {
+            return false;
+        }
+        
+        const currentLevel = config.logLevel || 'info';
+        const currentPriority = this.getLevelPriority(currentLevel);
+        const messagePriority = this.getLevelPriority(level);
+        
+        // 只有當訊息級別 >= 當前配置級別時才輸出
+        return messagePriority >= currentPriority;
+    },
+
+    /**
+     * 輸出 debug 日誌
+     */
+    debug(...args) {
+        if (this.shouldLog('debug')) {
+            console.debug('[DEBUG]', ...args);
+        }
+    },
+
+    /**
+     * 輸出 info 日誌
+     */
+    info(...args) {
+        if (this.shouldLog('info')) {
+            console.log('[INFO]', ...args);
+        }
+    },
+
+    /**
+     * 輸出 warn 日誌
+     */
+    warn(...args) {
+        if (this.shouldLog('warn')) {
+            console.warn('[WARN]', ...args);
+        }
+    },
+
+    /**
+     * 輸出 error 日誌
+     */
+    error(...args) {
+        if (this.shouldLog('error')) {
+            console.error('[ERROR]', ...args);
+        }
+    }
+};
+
+/**
  * 從任務範圍中計算最早的日期
  * @param {Map} taskRanges - 任務範圍映射
  * @returns {Date|null} 最早的日期，如果沒有則返回 null
@@ -68,14 +144,14 @@ function calculateInitialDate() {
     const initialDate = getEarliestDateFromRanges(taskRanges);
     
     if (initialDate) {
-        console.log('從資料中找出最早日期:', initialDate.toISOString().split('T')[0]);
+        Logger.info('從資料中找出最早日期:', initialDate.toISOString().split('T')[0]);
         return initialDate;
     }
     
     // 4. 使用當前日期
     const currentDate = new Date();
     currentDate.setDate(1);
-    console.log('使用當前日期:', currentDate.toISOString().split('T')[0]);
+    Logger.info('使用當前日期:', currentDate.toISOString().split('T')[0]);
     return currentDate;
 }
 
@@ -110,7 +186,7 @@ async function init() {
 
     } catch (error) {
         showError(`初始化失敗: ${error.message}`);
-        console.error('初始化錯誤:', error);
+        Logger.error('初始化錯誤:', error);
     }
 }
 
@@ -218,10 +294,10 @@ function loadSettingsFromStorage() {
                 }
             });
             
-            console.log('已載入任務條顯示設定:', SystemConfig.taskDisplay.taskBarFields);
+            Logger.info('已載入任務條顯示設定:', SystemConfig.taskDisplay.taskBarFields);
         }
     } catch (e) {
-        console.warn('載入設置失敗:', e);
+        Logger.warn('載入設置失敗:', e);
     }
 }
 
@@ -250,7 +326,7 @@ async function reloadExcelFile() {
 
         // 重新讀取 Excel 檔案（使用快取清除參數）
         const filePath = SystemConfig.excelFile?.path || 'resource/範例_藍圖之對應時程環境規劃.xlsx';
-        console.log('重新讀取 Excel 檔案:', filePath);
+        Logger.info('重新讀取 Excel 檔案:', filePath);
         
         const rawData = await excelReader.readExcel(filePath, true); // 使用快取清除
 
@@ -274,7 +350,7 @@ async function reloadExcelFile() {
             createLegend();
         }, 200);
 
-        console.log('Excel 檔案重新載入成功:', {
+        Logger.info('Excel 檔案重新載入成功:', {
             records: rawData.length,
             environments: dataProcessor.getEnvironments().length
         });
@@ -282,7 +358,7 @@ async function reloadExcelFile() {
     } catch (error) {
         const errorMsg = `重新載入 Excel 檔案失敗: ${error.message}\n\n請檢查：\n1. Excel 檔案是否存在於 resource/ 目錄\n2. 檔案格式是否正確\n3. 是否包含必要的欄位（環境、工作內容等）\n\n詳細錯誤請查看瀏覽器控制台（按 F12）`;
         showError(errorMsg);
-        console.error('重新載入錯誤:', error);
+        Logger.error('重新載入錯誤:', error);
     } finally {
         // 恢復按鈕狀態
         if (reloadBtn) {
@@ -301,15 +377,15 @@ async function reloadExcelFile() {
  * 清除快取並重新載入頁面
  */
 function clearCacheAndReload() {
-    console.log('開始清除快取...');
+    Logger.info('開始清除快取...');
     
     // 清除 localStorage
     try {
         const localStorageKeys = Object.keys(localStorage);
         localStorage.clear();
-        console.log('已清除 localStorage，共清除', localStorageKeys.length, '個項目:', localStorageKeys);
+        Logger.info('已清除 localStorage，共清除', localStorageKeys.length, '個項目:', localStorageKeys);
     } catch (e) {
-        console.warn('清除 localStorage 失敗:', e);
+        Logger.warn('清除 localStorage 失敗:', e);
     }
 
     // 清除 sessionStorage（但保留 _cache_cleared_ 標記，避免影響 _nocache 處理）
@@ -321,10 +397,10 @@ function clearCacheAndReload() {
                 sessionStorage.removeItem(key);
             }
         });
-        console.log('已清除 sessionStorage（保留 _nocache 標記），共清除', 
+        Logger.info('已清除 sessionStorage（保留 _nocache 標記），共清除', 
             sessionStorageKeys.filter(k => !k.startsWith('_cache_cleared_')).length, '個項目');
     } catch (e) {
-        console.warn('清除 sessionStorage 失敗:', e);
+        Logger.warn('清除 sessionStorage 失敗:', e);
     }
 
     // 生成時間戳
@@ -357,14 +433,14 @@ function clearCacheAndReload() {
     }
     expiresMeta.setAttribute('content', '0');
 
-    console.log('清除快取完成，準備重新載入頁面（時間戳:', timestamp, '）...');
+    Logger.info('清除快取完成，準備重新載入頁面（時間戳:', timestamp, '）...');
     
     // 使用時間戳重新載入，並更新所有 script 標籤的版本號
     // 注意：版本號會由 HTML 中的腳本根據 _nocache 參數自動更新
     const currentUrl = new URL(window.location.href);
     currentUrl.searchParams.set('_nocache', timestamp);
-    console.log('重新載入 URL:', currentUrl.toString());
-    console.log('提示：所有文件的版本號將自動更新為時間戳，以確保清除快取');
+    Logger.info('重新載入 URL:', currentUrl.toString());
+    Logger.info('提示：所有文件的版本號將自動更新為時間戳，以確保清除快取');
     
     // 強制清除所有快取並重新載入
     // 使用 replace 確保瀏覽器不會使用快取
@@ -372,7 +448,7 @@ function clearCacheAndReload() {
         caches.keys().then(names => {
             names.forEach(name => {
                 caches.delete(name);
-                console.log('已清除快取:', name);
+                Logger.debug('已清除快取:', name);
             });
         }).then(() => {
             window.location.replace(currentUrl.toString());
@@ -403,8 +479,8 @@ async function loadExcelFile() {
         const filePath = SystemConfig.excelFile?.path || 'resource/範例_藍圖之對應時程環境規劃.xlsx';
         const fileName = SystemConfig.excelFile?.name || '範例_藍圖之對應時程環境規劃.xlsx';
         
-        console.log('載入 Excel 檔案:', filePath);
-        console.log('檔案名稱:', fileName);
+        Logger.info('載入 Excel 檔案:', filePath);
+        Logger.info('檔案名稱:', fileName);
         
         // 使用快取清除參數，確保讀取最新檔案
         const rawData = await excelReader.readExcel(filePath, true);
@@ -414,7 +490,7 @@ async function loadExcelFile() {
             const firstRecord = rawData[0];
             if (firstRecord.startDate) {
                 const firstYear = new Date(firstRecord.startDate).getFullYear();
-                console.log('資料年份檢查: 第一筆資料的年份為', firstYear, '年');
+                Logger.debug('資料年份檢查: 第一筆資料的年份為', firstYear, '年');
             }
         }
 
@@ -431,8 +507,8 @@ async function loadExcelFile() {
         if (initialDate) {
             // 確保設定正確的日期
             calendar.currentDate = new Date(initialDate);
-            console.log('設定初始日期為:', calendar.currentDate.toISOString().split('T')[0]);
-            console.log('當前月份:', calendar.currentDate.getFullYear(), '年', calendar.currentDate.getMonth() + 1, '月');
+            Logger.info('設定初始日期為:', calendar.currentDate.toISOString().split('T')[0]);
+            Logger.info('當前月份:', calendar.currentDate.getFullYear(), '年', calendar.currentDate.getMonth() + 1, '月');
         }
 
         // 渲染月曆（使用 setTimeout 確保 DOM 已準備好）
@@ -446,7 +522,7 @@ async function loadExcelFile() {
         // 建立圖例
         createLegend();
 
-        console.log('資料載入成功:', {
+        Logger.info('資料載入成功:', {
             records: rawData.length,
             environments: dataProcessor.getEnvironments().length
         });
@@ -454,8 +530,8 @@ async function loadExcelFile() {
     } catch (error) {
         const errorMsg = `載入 Excel 檔案失敗: ${error.message}\n\n請檢查：\n1. Excel 檔案是否存在於 resource/ 目錄\n2. 檔案格式是否正確\n3. 是否包含必要的欄位（環境、工作內容等）\n\n詳細錯誤請查看瀏覽器控制台（按 F12）`;
         showError(errorMsg);
-        console.error('載入錯誤:', error);
-        console.error('錯誤堆疊:', error.stack);
+        Logger.error('載入錯誤:', error);
+        Logger.error('錯誤堆疊:', error.stack);
     } finally {
         // 隱藏載入狀態
         if (loadingIndicator) {
@@ -471,11 +547,21 @@ function createEnvironmentFilters() {
     const filterContainer = document.getElementById('environmentFilters');
     if (!filterContainer) return;
 
-    // 清除現有篩選器（保留「全部顯示」按鈕）
+    // 檢查是否顯示「全部顯示」按鈕
+    const showAllButton = SystemConfig.filter?.showAllButton !== false;
+    
+    // 清除現有篩選器（根據配置決定是否保留「全部顯示」按鈕）
     const allBtn = filterContainer.querySelector('[data-env="all"]');
     filterContainer.innerHTML = '';
-    if (allBtn) {
+    if (showAllButton && allBtn) {
         filterContainer.appendChild(allBtn);
+    } else if (showAllButton) {
+        // 如果配置要求顯示但按鈕不存在，創建它
+        const newAllBtn = document.createElement('button');
+        newAllBtn.className = 'filter-btn active';
+        newAllBtn.textContent = '全部顯示';
+        newAllBtn.dataset.env = 'all';
+        filterContainer.appendChild(newAllBtn);
     }
 
     // 取得所有環境
@@ -503,16 +589,18 @@ function createEnvironmentFilters() {
         filterContainer.appendChild(btn);
     });
 
-    // 「全部顯示」按鈕事件
-    const allButton = filterContainer.querySelector('[data-env="all"]');
-    if (allButton) {
-        allButton.addEventListener('click', () => {
-            filterContainer.querySelectorAll('.filter-btn').forEach(b => {
-                b.classList.remove('active');
+    // 「全部顯示」按鈕事件（僅在配置啟用時）
+    if (showAllButton) {
+        const allButton = filterContainer.querySelector('[data-env="all"]');
+        if (allButton) {
+            allButton.addEventListener('click', () => {
+                filterContainer.querySelectorAll('.filter-btn').forEach(b => {
+                    b.classList.remove('active');
+                });
+                allButton.classList.add('active');
+                calendar.setFilter('all');
             });
-            allButton.classList.add('active');
-            calendar.setFilter('all');
-        });
+        }
     }
 }
 
@@ -536,6 +624,15 @@ function createLegend() {
         envSection.appendChild(envTitle);
 
         const environments = dataProcessor.getEnvironments();
+        const maxItemsPerRow = config.maxItemsPerRow || 4;
+        
+        // 設置圖例項目的容器樣式
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = 'legend-items-container';
+        itemsContainer.style.display = 'grid';
+        itemsContainer.style.gridTemplateColumns = `repeat(${maxItemsPerRow}, 1fr)`;
+        itemsContainer.style.gap = '8px';
+        
         environments.forEach(env => {
             const legendItem = document.createElement('div');
             legendItem.className = 'legend-item';
@@ -550,8 +647,9 @@ function createLegend() {
 
             legendItem.appendChild(colorBox);
             legendItem.appendChild(label);
-            envSection.appendChild(legendItem);
+            itemsContainer.appendChild(legendItem);
         });
+        envSection.appendChild(itemsContainer);
         legendContainer.appendChild(envSection);
     }
 
@@ -567,6 +665,15 @@ function createLegend() {
             batchSection.appendChild(batchTitle);
 
             const batchColorMap = dataProcessor.getBatchColorMap();
+            const maxItemsPerRow = config.maxItemsPerRow || 4;
+            
+            // 設置圖例項目的容器樣式
+            const itemsContainer = document.createElement('div');
+            itemsContainer.className = 'legend-items-container';
+            itemsContainer.style.display = 'grid';
+            itemsContainer.style.gridTemplateColumns = `repeat(${maxItemsPerRow}, 1fr)`;
+            itemsContainer.style.gap = '8px';
+            
             batches.forEach(batch => {
                 const legendItem = document.createElement('div');
                 legendItem.className = 'legend-item';
@@ -581,8 +688,9 @@ function createLegend() {
 
                 legendItem.appendChild(colorBox);
                 legendItem.appendChild(label);
-                batchSection.appendChild(legendItem);
+                itemsContainer.appendChild(legendItem);
             });
+            batchSection.appendChild(itemsContainer);
             legendContainer.appendChild(batchSection);
         }
     }
@@ -597,6 +705,15 @@ function createLegend() {
         statusSection.appendChild(statusTitle);
 
         const statusColorMap = dataProcessor.getStatusColorMap();
+        const maxItemsPerRow = config.maxItemsPerRow || 4;
+        
+        // 設置圖例項目的容器樣式
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = 'legend-items-container';
+        itemsContainer.style.display = 'grid';
+        itemsContainer.style.gridTemplateColumns = `repeat(${maxItemsPerRow}, 1fr)`;
+        itemsContainer.style.gap = '8px';
+        
         Object.entries(statusColorMap).forEach(([status, color]) => {
             const legendItem = document.createElement('div');
             legendItem.className = 'legend-item';
@@ -611,8 +728,9 @@ function createLegend() {
 
             legendItem.appendChild(colorBox);
             legendItem.appendChild(label);
-            statusSection.appendChild(legendItem);
+            itemsContainer.appendChild(legendItem);
         });
+        statusSection.appendChild(itemsContainer);
         legendContainer.appendChild(statusSection);
     }
 
@@ -631,6 +749,15 @@ function createLegend() {
         const fieldTitle = document.createElement('h4');
         fieldTitle.textContent = '任務條顯示欄位';
         fieldSection.appendChild(fieldTitle);
+
+        const maxItemsPerRow = config.maxItemsPerRow || 4;
+        
+        // 設置圖例項目的容器樣式
+        const itemsContainer = document.createElement('div');
+        itemsContainer.className = 'legend-items-container';
+        itemsContainer.style.display = 'grid';
+        itemsContainer.style.gridTemplateColumns = `repeat(${maxItemsPerRow}, 1fr)`;
+        itemsContainer.style.gap = '8px';
 
         enabledFields.forEach(fieldKey => {
             const legendItem = document.createElement('div');
@@ -683,8 +810,9 @@ function createLegend() {
 
             legendItem.appendChild(colorBox);
             legendItem.appendChild(label);
-            fieldSection.appendChild(legendItem);
+            itemsContainer.appendChild(legendItem);
         });
+        fieldSection.appendChild(itemsContainer);
         legendContainer.appendChild(fieldSection);
     }
 }
@@ -699,7 +827,7 @@ function showError(message) {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
     }
-    console.error(message);
+    Logger.error(message);
 }
 
 // 當頁面載入完成時初始化

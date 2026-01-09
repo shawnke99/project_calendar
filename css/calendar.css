@@ -326,12 +326,18 @@ body {
     color: #1e40af;
 }
 
+.legend-items-container {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+
 .legend-item {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 8px 10px;
-    margin-bottom: 6px;
+    margin-bottom: 0;
     border-radius: 6px;
     transition: background 0.2s ease;
     cursor: default;
@@ -549,22 +555,20 @@ body {
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.7em;
-    overflow: visible; /* 允許內容溢出 */
+    transition: all 0.2s ease;
+    box-sizing: border-box; /* 確保寬度計算一致，包含 border 和 padding */
+    overflow: hidden; /* 預設隱藏溢出內容 */
     text-overflow: ellipsis;
     white-space: nowrap;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    min-height: 20px;
-    height: 20px; /* 固定高度，確保堆疊整齊 */
-    border-left-width: 4px;
-    border-left-style: solid;
-    box-sizing: border-box; /* 確保寬度計算正確 */
 }
 
-.spanning-task-bar:hover {
+/* 懸停效果（僅在啟用時） */
+.spanning-task-bar.hover-enabled:hover {
+    transform: translateY(-1px) translateX(2px); /* 合併兩個 transform */
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    opacity: 0.9;
     z-index: 10;
-    transform: translateX(2px);
-    transition: all 0.2s ease;
+    overflow: visible; /* hover 時允許內容溢出 */
 }
 
 .task-bar-badge {
