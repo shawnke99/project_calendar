@@ -84,13 +84,26 @@ function calculateInitialDate() {
  */
 async function init() {
     try {
+        // 從 localStorage 載入設置
+        loadSettingsFromStorage();
+
         // 初始化模組（傳入配置）
         excelReader = new ExcelReader(SystemConfig);
         dataProcessor = new DataProcessor(SystemConfig);
         calendar = new Calendar('calendarGrid', dataProcessor, SystemConfig);
 
+        // 設定日曆實例給設置面板模組
+        if (typeof setCalendarInstance === 'function') {
+            setCalendarInstance(calendar);
+        }
+
         // 設定事件監聽器
         setupEventListeners();
+
+        // 初始化設置面板（生成動態選項）
+        if (typeof generateTaskBarFieldOptions === 'function') {
+            generateTaskBarFieldOptions();
+        }
 
         // 載入 Excel 檔案
         await loadExcelFile();
@@ -161,6 +174,53 @@ function setupEventListeners() {
             reloadExcelFile();
         });
     }
+
+    // 設置面板相關事件
+    if (typeof setupSettingsPanel === 'function') {
+        setupSettingsPanel();
+    }
+}
+
+/**
+ * 從 localStorage 載入設置
+ * 注意：實際的設置面板邏輯已移至 settings-panel.js
+ * 此函數在 settings-panel.js 中定義，如果該文件已載入則會覆蓋此函數
+ */
+function loadSettingsFromStorage() {
+    // 如果 settings-panel.js 已載入，其 loadSettingsFromStorage 會覆蓋此函數
+    // 此處保留作為後備實現
+    try {
+        const savedFields = localStorage.getItem('taskBarFields');
+        if (savedFields) {
+            const fields = JSON.parse(savedFields);
+            if (!SystemConfig.taskDisplay) {
+                SystemConfig.taskDisplay = {};
+            }
+            
+            // 取得所有欄位的預設值
+            const fieldMapping = SystemConfig.fieldMapping || {};
+            const allFields = Object.keys(fieldMapping);
+            
+            // 初始化 taskBarFields
+            SystemConfig.taskDisplay.taskBarFields = {};
+            
+            // 載入保存的設置，或使用預設值
+            allFields.forEach(fieldKey => {
+                if (fields.hasOwnProperty(fieldKey)) {
+                    SystemConfig.taskDisplay.taskBarFields[fieldKey] = fields[fieldKey] === true;
+                } else {
+                    // 使用預設值
+                    SystemConfig.taskDisplay.taskBarFields[fieldKey] = 
+                        (fieldKey === 'environment' || fieldKey === 'batch' || fieldKey === 'status') 
+                            ? true : false;
+                }
+            });
+            
+            console.log('已載入任務條顯示設定:', SystemConfig.taskDisplay.taskBarFields);
+        }
+    } catch (e) {
+        console.warn('載入設置失敗:', e);
+    }
 }
 
 /**
@@ -187,7 +247,7 @@ async function reloadExcelFile() {
         }
 
         // 重新讀取 Excel 檔案（使用快取清除參數）
-        const filePath = 'resource/範例_藍圖之對應時程環境規劃.xlsx';
+        const filePath = SystemConfig.excelFile?.path || 'resource/範例_藍圖之對應時程環境規劃.xlsx';
         console.log('重新讀取 Excel 檔案:', filePath);
         
         const rawData = await excelReader.readExcel(filePath, true); // 使用快取清除
@@ -255,13 +315,41 @@ function clearCacheAndReload() {
         console.warn('清除 sessionStorage 失敗:', e);
     }
 
-    // 生成時間戳並重新載入頁面
-    // 內聯腳本會處理 script 標籤的版本號更新
+    // 生成時間戳
     const timestamp = new Date().getTime();
-    const currentUrl = new URL(window.location.href);
-    currentUrl.searchParams.set('nocache', timestamp);
     
-    console.log('清除快取，重新載入頁面...');
+    // 添加禁用快取的 meta 標籤（如果還沒有）
+    let noCacheMeta = document.querySelector('meta[http-equiv="Cache-Control"]');
+    if (!noCacheMeta) {
+        noCacheMeta = document.createElement('meta');
+        noCacheMeta.setAttribute('http-equiv', 'Cache-Control');
+        document.head.appendChild(noCacheMeta);
+    }
+    noCacheMeta.setAttribute('content', 'no-cache, no-store, must-revalidate');
+    
+    // 添加 Pragma meta 標籤
+    let pragmaMeta = document.querySelector('meta[http-equiv="Pragma"]');
+    if (!pragmaMeta) {
+        pragmaMeta = document.createElement('meta');
+        pragmaMeta.setAttribute('http-equiv', 'Pragma');
+        document.head.appendChild(pragmaMeta);
+    }
+    pragmaMeta.setAttribute('content', 'no-cache');
+    
+    // 添加 Expires meta 標籤
+    let expiresMeta = document.querySelector('meta[http-equiv="Expires"]');
+    if (!expiresMeta) {
+        expiresMeta = document.createElement('meta');
+        expiresMeta.setAttribute('http-equiv', 'Expires');
+        document.head.appendChild(expiresMeta);
+    }
+    expiresMeta.setAttribute('content', '0');
+
+    console.log('清除快取，重新載入頁面（時間戳:', timestamp, '）...');
+    
+    // 使用時間戳重新載入，並更新所有 script 標籤的版本號
+    const currentUrl = new URL(window.location.href);
+    currentUrl.searchParams.set('_nocache', timestamp);
     window.location.href = currentUrl.toString();
 }
 
@@ -282,11 +370,12 @@ async function loadExcelFile() {
         }
 
         // 讀取 Excel 檔案
-        // 使用範例檔案作為系統預設資料來源
-        const filePath = 'resource/範例_藍圖之對應時程環境規劃.xlsx';
+        // 從配置中取得檔案路徑
+        const filePath = SystemConfig.excelFile?.path || 'resource/範例_藍圖之對應時程環境規劃.xlsx';
+        const fileName = SystemConfig.excelFile?.name || '範例_藍圖之對應時程環境規劃.xlsx';
         
         console.log('載入 Excel 檔案:', filePath);
-        console.log('檔案路徑確認: 使用範例_藍圖之對應時程環境規劃.xlsx 作為資料來源');
+        console.log('檔案名稱:', fileName);
         
         // 使用快取清除參數，確保讀取最新檔案
         const rawData = await excelReader.readExcel(filePath, true);
@@ -496,6 +585,78 @@ function createLegend() {
             statusSection.appendChild(legendItem);
         });
         legendContainer.appendChild(statusSection);
+    }
+
+    // 顯示設定欄位圖例（顯示在任務條上的欄位及其顏色）
+    const taskBarFields = SystemConfig.taskDisplay?.taskBarFields || {};
+    const taskBarFieldColors = SystemConfig.taskDisplay?.taskBarFieldColors || {};
+    const fieldDisplayNames = SystemConfig.fieldDisplayNames || {};
+    const enabledFields = Object.entries(taskBarFields)
+        .filter(([fieldKey, enabled]) => enabled === true && fieldKey !== 'environment' && fieldKey !== 'batch' && fieldKey !== 'status')
+        .map(([fieldKey]) => fieldKey);
+
+    if (enabledFields.length > 0) {
+        const fieldSection = document.createElement('div');
+        fieldSection.className = 'legend-section-group';
+        fieldSection.setAttribute('data-type', 'taskBarFields');
+        const fieldTitle = document.createElement('h4');
+        fieldTitle.textContent = '任務條顯示欄位';
+        fieldSection.appendChild(fieldTitle);
+
+        enabledFields.forEach(fieldKey => {
+            const legendItem = document.createElement('div');
+            legendItem.className = 'legend-item';
+
+            const colorBox = document.createElement('div');
+            colorBox.className = 'legend-color';
+            
+            // 取得欄位顏色
+            let fieldColor = taskBarFieldColors[fieldKey];
+            
+            // 如果沒有配置顏色，使用預設顏色
+            if (!fieldColor) {
+                // 根據欄位類型設置預設顏色
+                switch(fieldKey) {
+                    case 'businessDate':
+                        fieldColor = '#f59e0b'; // 橙色
+                        break;
+                    case 'dataBaseDate':
+                    case 'kingdomFreezeDate':
+                    case 'kingdomTransferDate':
+                        fieldColor = '#06b6d4'; // 青色
+                        break;
+                    case 'intermediateFile':
+                    case 'remark':
+                        fieldColor = '#64748b'; // 灰色
+                        break;
+                    case 'startDate':
+                        fieldColor = '#10b981'; // 綠色
+                        break;
+                    case 'endDate':
+                        fieldColor = '#ef4444'; // 紅色
+                        break;
+                    case 'purpose':
+                        fieldColor = '#6366f1'; // 紫色
+                        break;
+                    case 'task':
+                        fieldColor = '#8b5cf6'; // 紫色
+                        break;
+                    default:
+                        fieldColor = '#64748b'; // 預設灰色
+                }
+            }
+            
+            colorBox.style.backgroundColor = fieldColor;
+
+            const label = document.createElement('span');
+            label.className = 'legend-label';
+            label.textContent = fieldDisplayNames[fieldKey] || fieldKey;
+
+            legendItem.appendChild(colorBox);
+            legendItem.appendChild(label);
+            fieldSection.appendChild(legendItem);
+        });
+        legendContainer.appendChild(fieldSection);
     }
 }
 

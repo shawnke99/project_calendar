@@ -60,7 +60,16 @@ const SystemConfig = {
         dataBaseDate: ['資料基準日', '資料基準日', '基準日', 'data base date', 'data base', '資料基準日期', '基準日期'],
         kingdomFreezeDate: ['京城封版日', '京城封版日', '封版日', 'freeze date', 'freeze', '封版日期', '京城封版日期'],
         kingdomTransferDate: ['京城傳送中介檔日', '京城傳送中介檔日', '傳送中介檔日', '傳送日', 'transfer date', 'transfer', '傳送日期', '京城傳送日期'],
+        businessDate: ['營業日', '營業日期', 'business date', 'business', '營業日日期', 'business day'],
         remark: ['備注說明', '備註說明', '備注', '備註', '說明', 'remark', 'note', 'comment', '備注說明欄位', '備註說明欄位', '備註欄', '備注欄']
+    },
+
+    // Excel 檔案路徑設定
+    excelFile: {
+        // Excel 檔案路徑（相對於網站根目錄）
+        path: 'resource/範例_藍圖之對應時程環境規劃.xlsx',
+        // 檔案名稱（用於顯示和除錯）
+        name: '範例_藍圖之對應時程環境規劃.xlsx'
     },
 
     // 月曆顯示設定
@@ -112,7 +121,58 @@ const SystemConfig = {
         // 是否在非開始日期顯示佔位符
         showPlaceholders: true,
         // 任務條懸停效果
-        hoverEffect: true
+        hoverEffect: true,
+        // 任務條上顯示的欄位（第一層日曆顯示）
+        // 所有 fieldMapping 中的欄位都可以在這裡配置是否顯示
+        // 環境名稱預設總是顯示（作為主要識別），但可以通過此配置控制其他欄位
+        taskBarFields: {
+            environment: true,      // 環境名稱（建議保持為 true，因為是主要識別）
+            batch: true,            // 執行梯次
+            status: true,           // 狀態
+            businessDate: false,    // 營業日
+            purpose: false,         // 環境目的
+            task: false,            // 工作內容
+            startDate: false,       // 開始日期
+            endDate: false,         // 結束日期
+            dataBaseDate: false,    // 資料基準日
+            kingdomFreezeDate: false, // 京城封版日
+            kingdomTransferDate: false, // 京城傳送中介檔日
+            intermediateFile: false, // 中介檔
+            remark: false           // 備注說明
+        },
+        // 任務條欄位顏色配置（用於圖例說明）
+        taskBarFieldColors: {
+            environment: null,      // 使用環境的顏色（動態）
+            purpose: '#6366f1',     // 紫色
+            batch: null,            // 使用梯次的顏色（動態）
+            status: null,           // 使用狀態的顏色（動態）
+            task: '#8b5cf6',       // 紫色
+            startDate: '#10b981',  // 綠色
+            endDate: '#ef4444',     // 紅色
+            businessDate: '#f59e0b', // 橙色
+            dataBaseDate: '#06b6d4', // 青色
+            kingdomFreezeDate: '#06b6d4', // 青色
+            kingdomTransferDate: '#06b6d4', // 青色
+            intermediateFile: '#64748b', // 灰色
+            remark: '#64748b'       // 灰色
+        }
+    },
+
+    // 欄位顯示名稱映射（用於設置面板）
+    fieldDisplayNames: {
+        environment: '環境名稱',
+        purpose: '環境目的',
+        task: '工作內容',
+        startDate: '開始日期',
+        endDate: '結束日期',
+        batch: '執行梯次',
+        status: '狀態',
+        intermediateFile: '中介檔',
+        dataBaseDate: '資料基準日',
+        kingdomFreezeDate: '京城封版日',
+        kingdomTransferDate: '京城傳送中介檔日',
+        businessDate: '營業日',
+        remark: '備注說明'
     },
 
     // 效能設定

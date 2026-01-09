@@ -206,7 +206,7 @@ class ExcelReader {
             'endDate', 'batch', 'status',
             // 擴展欄位
             'intermediateFile', 'dataBaseDate', 'kingdomFreezeDate', 
-            'kingdomTransferDate', 'remark'
+            'kingdomTransferDate', 'businessDate', 'remark'
         ];
         
         // 第一輪：完全匹配
@@ -355,6 +355,10 @@ class ExcelReader {
             record.kingdomTransferDate = this.parseDate(row[headerMap.kingdomTransferDate]);
         }
 
+        if (headerMap.businessDate !== undefined) {
+            record.businessDate = this.parseDate(row[headerMap.businessDate]);
+        }
+
         if (headerMap.remark !== undefined) {
             record.remark = String(row[headerMap.remark] || '').trim();
         }
@@ -394,6 +398,10 @@ class ExcelReader {
         if (headerMap.kingdomTransferDate !== undefined) {
             const header = headers[headerMap.kingdomTransferDate] || '京城傳送中介檔日';
             record.customFields[header] = record.kingdomTransferDate || '';
+        }
+        if (headerMap.businessDate !== undefined) {
+            const header = headers[headerMap.businessDate] || '營業日';
+            record.customFields[header] = record.businessDate || '';
         }
         if (headerMap.remark !== undefined) {
             const header = headers[headerMap.remark] || '備注說明';

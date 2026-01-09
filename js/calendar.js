@@ -349,43 +349,11 @@ class Calendar {
             }
         }, 200);
         
-        // 顯示：環境名稱（主要）
-        const envName = document.createElement('span');
-        envName.textContent = taskRange.environment;
-        envName.style.fontWeight = '700';
-        envName.style.color = taskRange.environmentData.color;
-        envName.style.marginRight = '8px';
-        envName.style.fontSize = '0.75em';
-        taskBar.appendChild(envName);
+        // 取得任務條欄位顯示配置
+        const taskBarFields = this.config.taskDisplay?.taskBarFields || {};
         
-        // 梯次標籤
-        if (taskRange.batch && taskRange.batch !== DataProcessor.DEFAULT_BATCH) {
-            const batchBadge = document.createElement('span');
-            batchBadge.className = 'task-bar-badge';
-            batchBadge.textContent = taskRange.batch;
-            batchBadge.style.backgroundColor = taskRange.batchColor;
-            batchBadge.style.color = this.getContrastTextColor(taskRange.batchColor);
-            batchBadge.style.padding = '2px 6px';
-            batchBadge.style.borderRadius = '4px';
-            batchBadge.style.fontSize = '0.65em';
-            batchBadge.style.fontWeight = '600';
-            batchBadge.style.marginRight = '4px';
-            taskBar.appendChild(batchBadge);
-        }
-        
-        // 狀態標籤
-        if (taskRange.status) {
-            const statusBadge = document.createElement('span');
-            statusBadge.className = 'task-bar-badge';
-            statusBadge.textContent = taskRange.status;
-            statusBadge.style.backgroundColor = taskRange.statusColor;
-            statusBadge.style.color = this.getContrastTextColor(taskRange.statusColor);
-            statusBadge.style.padding = '2px 6px';
-            statusBadge.style.borderRadius = '4px';
-            statusBadge.style.fontSize = '0.65em';
-            statusBadge.style.fontWeight = '600';
-            taskBar.appendChild(statusBadge);
-        }
+        // 動態顯示所有配置的欄位
+        this.renderTaskBarFields(taskBar, taskRange, taskBarFields);
         
         // 點擊事件 - 使用 addEventListener 確保事件正確綁定
         taskBar.addEventListener('click', (e) => {
@@ -512,6 +480,157 @@ class Calendar {
         return dayDiv;
     }
 
+
+    /**
+     * 渲染任務條上的欄位（根據配置動態顯示）
+     * @param {HTMLElement} taskBar - 任務條元素
+     * @param {Object} taskRange - 任務範圍資訊
+     * @param {Object} taskBarFields - 欄位顯示配置
+     */
+    renderTaskBarFields(taskBar, taskRange, taskBarFields) {
+        // 環境名稱（特殊處理：主要識別，樣式不同）
+        if (taskBarFields.environment !== false) {
+            const envName = document.createElement('span');
+            envName.textContent = taskRange.environment;
+            envName.style.fontWeight = '700';
+            envName.style.color = taskRange.environmentData.color;
+            envName.style.marginRight = '8px';
+            envName.style.fontSize = '0.75em';
+            taskBar.appendChild(envName);
+        }
+
+        // 處理其他欄位（按配置順序）
+        const fieldOrder = [
+            'purpose', 'batch', 'status', 'task', 
+            'startDate', 'endDate', 'businessDate',
+            'dataBaseDate', 'kingdomFreezeDate', 'kingdomTransferDate',
+            'intermediateFile', 'remark'
+        ];
+
+        fieldOrder.forEach(fieldKey => {
+            if (taskBarFields[fieldKey] !== true) return;
+
+            let value = null;
+            let displayText = '';
+            let badgeColor = null;
+
+            // 根據欄位類型取得值
+            switch (fieldKey) {
+                case 'purpose':
+                    value = taskRange.environmentData?.purpose;
+                    displayText = value || '';
+                    badgeColor = '#6366f1'; // 紫色
+                    break;
+                case 'batch':
+                    value = taskRange.batch;
+                    if (value && value !== DataProcessor.DEFAULT_BATCH) {
+                        displayText = value;
+                        badgeColor = taskRange.batchColor;
+                    }
+                    break;
+                case 'status':
+                    value = taskRange.status;
+                    if (value) {
+                        displayText = value;
+                        badgeColor = taskRange.statusColor;
+                    }
+                    break;
+                case 'task':
+                    // 顯示第一個任務的內容
+                    if (taskRange.tasks && taskRange.tasks.length > 0) {
+                        displayText = taskRange.tasks[0].content || '';
+                        badgeColor = '#8b5cf6'; // 紫色
+                    }
+                    break;
+                case 'startDate':
+                    if (taskRange.startDate) {
+                        displayText = this.formatDate(taskRange.startDate);
+                        badgeColor = '#10b981'; // 綠色
+                    }
+                    break;
+                case 'endDate':
+                    if (taskRange.endDate) {
+                        displayText = this.formatDate(taskRange.endDate);
+                        badgeColor = '#ef4444'; // 紅色
+                    }
+                    break;
+                case 'businessDate':
+                    // 從任務中取得營業日
+                    if (taskRange.tasks && taskRange.tasks.length > 0) {
+                        const businessDates = taskRange.tasks
+                            .map(task => task.businessDate)
+                            .filter(date => date !== null && date !== undefined);
+                        
+                        if (businessDates.length > 0) {
+                            const earliestDate = businessDates.reduce((earliest, current) => {
+                                return current < earliest ? current : earliest;
+                            });
+                            displayText = this.formatDate(earliestDate);
+                            badgeColor = '#f59e0b'; // 橙色
+                        }
+                    }
+                    break;
+                case 'dataBaseDate':
+                case 'kingdomFreezeDate':
+                case 'kingdomTransferDate':
+                    // 從任務中取得日期欄位
+                    if (taskRange.tasks && taskRange.tasks.length > 0) {
+                        const dates = taskRange.tasks
+                            .map(task => task[fieldKey])
+                            .filter(date => date !== null && date !== undefined);
+                        
+                        if (dates.length > 0) {
+                            const earliestDate = dates.reduce((earliest, current) => {
+                                return current < earliest ? current : earliest;
+                            });
+                            displayText = this.formatDate(earliestDate);
+                            badgeColor = '#06b6d4'; // 青色
+                        }
+                    }
+                    break;
+                case 'intermediateFile':
+                case 'remark':
+                    // 文字欄位
+                    if (taskRange.tasks && taskRange.tasks.length > 0) {
+                        const values = taskRange.tasks
+                            .map(task => task[fieldKey])
+                            .filter(val => val && val !== '');
+                        
+                        if (values.length > 0) {
+                            displayText = values[0];
+                            badgeColor = '#64748b'; // 灰色
+                        }
+                    }
+                    break;
+            }
+
+            // 如果有值，創建標籤
+            if (displayText && badgeColor) {
+                const badge = document.createElement('span');
+                badge.className = 'task-bar-badge';
+                badge.textContent = displayText;
+                badge.style.backgroundColor = badgeColor;
+                badge.style.color = this.getContrastTextColor(badgeColor);
+                badge.style.padding = '2px 6px';
+                badge.style.borderRadius = '4px';
+                badge.style.fontSize = '0.65em';
+                badge.style.fontWeight = '600';
+                badge.style.marginRight = '4px';
+                badge.title = this.getFieldDisplayName(fieldKey) + ': ' + displayText;
+                taskBar.appendChild(badge);
+            }
+        });
+    }
+
+    /**
+     * 取得欄位的顯示名稱
+     * @param {string} fieldKey - 欄位鍵值
+     * @returns {string} 顯示名稱
+     */
+    getFieldDisplayName(fieldKey) {
+        const fieldDisplayNames = this.config.fieldDisplayNames || {};
+        return fieldDisplayNames[fieldKey] || fieldKey;
+    }
 
     /**
      * 為顏色添加透明度
@@ -978,13 +1097,14 @@ class Calendar {
                 detailInfo += `<br><small><strong>${fieldName}：</strong>${displayValue}</small>`;
             });
         } else {
-            // 如果沒有 customFields，顯示已知欄位（包括空值）
-            const knownFields = [
-                { key: 'dataBaseDate', label: '資料基準日' },
-                { key: 'kingdomFreezeDate', label: '京城封版日' },
-                { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
-                { key: 'remark', label: '備注說明' }
-            ];
+                            // 如果沒有 customFields，顯示已知欄位（包括空值）
+                            const knownFields = [
+                                { key: 'dataBaseDate', label: '資料基準日' },
+                                { key: 'kingdomFreezeDate', label: '京城封版日' },
+                                { key: 'kingdomTransferDate', label: '京城傳送中介檔日' },
+                                { key: 'businessDate', label: '營業日' },
+                                { key: 'remark', label: '備注說明' }
+                            ];
             
             knownFields.forEach(field => {
                 const value = task[field.key];

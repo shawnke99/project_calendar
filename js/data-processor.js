@@ -121,6 +121,7 @@ class DataProcessor {
                 dataBaseDate: record.dataBaseDate || null,
                 kingdomFreezeDate: record.kingdomFreezeDate || null,
                 kingdomTransferDate: record.kingdomTransferDate || null,
+                businessDate: record.businessDate || null,
                 remark: record.remark || '',
                 // 動態欄位（所有未映射的欄位）
                 customFields: record.customFields || {}

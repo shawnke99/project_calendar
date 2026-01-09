@@ -5,57 +5,86 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>專案行事曆 - 任務顯示管理</title>
     <link rel="stylesheet" href="css/calendar.css?v=2">
-    <!-- 清除 JavaScript 文件快取的內聯腳本（必須在所有 script 標籤之前執行） -->
+    <!-- 清除 JavaScript 文件快取的內聯腳本 -->
     <script>
         (function() {
-            // 檢查 URL 參數中是否有 nocache
+            // 檢查 URL 參數中是否有 _nocache
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('nocache')) {
-                const timestamp = urlParams.get('nocache');
+            if (urlParams.has('_nocache')) {
+                const timestamp = urlParams.get('_nocache');
                 
-                // 立即移除 URL 參數（避免重新載入時再次觸發）
-                const cleanUrl = window.location.pathname + (window.location.hash || '');
+                // 檢查是否已經處理過（使用 sessionStorage 避免無限循環）
+                const processedKey = '_cache_cleared_' + timestamp;
+                if (sessionStorage.getItem(processedKey)) {
+                    // 已經處理過，移除 URL 參數和標記
+                    urlParams.delete('_nocache');
+                    const cleanUrl = window.location.pathname + 
+                        (urlParams.toString() ? '?' + urlParams.toString() : '') + 
+                        (window.location.hash || '');
+                    window.history.replaceState({}, '', cleanUrl);
+                    sessionStorage.removeItem(processedKey);
+                    return;
+                }
+                
+                // 標記為已處理
+                sessionStorage.setItem(processedKey, 'true');
+                
+                // 立即移除 URL 參數
+                urlParams.delete('_nocache');
+                const cleanUrl = window.location.pathname + 
+                    (urlParams.toString() ? '?' + urlParams.toString() : '') + 
+                    (window.location.hash || '');
                 window.history.replaceState({}, '', cleanUrl);
                 
                 // 更新所有 script 標籤的版本號
-                const scripts = document.querySelectorAll('script[src]');
-                let needsReload = false;
-                
-                scripts.forEach(function(script) {
-                    const src = script.getAttribute('src');
-                    if (src && !src.includes('cdnjs.cloudflare.com')) {
-                        // 只更新本地文件，不更新 CDN 文件
-                        try {
-                            const url = new URL(src, window.location.origin);
-                            const currentVersion = url.searchParams.get('v');
-                            // 如果版本號不同，更新它
-                            if (currentVersion !== timestamp) {
-                                url.searchParams.set('v', timestamp);
-                                script.src = url.pathname + '?' + url.searchParams.toString();
-                                needsReload = true;
-                                console.log('已更新 script 版本號:', script.src);
-                            }
-                        } catch (e) {
-                            // 如果 URL 解析失敗，嘗試簡單的字串替換
-                            if (!src.includes('v=' + timestamp)) {
-                                const separator = src.includes('?') ? '&' : '?';
-                                const newSrc = src.replace(/[?&]v=\d+/, '') + separator + 'v=' + timestamp;
-                                script.src = newSrc;
-                                needsReload = true;
-                                console.log('已更新 script 版本號 (字串替換):', script.src);
+                function updateScriptVersions() {
+                    const scripts = document.querySelectorAll('script[src]');
+                    let updated = false;
+                    
+                    scripts.forEach(function(script) {
+                        const src = script.getAttribute('src');
+                        if (src && !src.includes('cdnjs.cloudflare.com')) {
+                            // 只更新本地文件，不更新 CDN 文件
+                            try {
+                                const url = new URL(src, window.location.origin);
+                                const currentVersion = url.searchParams.get('v');
+                                // 如果版本號不同，更新它
+                                if (currentVersion !== timestamp) {
+                                    url.searchParams.set('v', timestamp);
+                                    script.src = url.pathname + '?' + url.searchParams.toString();
+                                    updated = true;
+                                    console.log('已更新 script 版本號:', script.src);
+                                }
+                            } catch (e) {
+                                // 如果 URL 解析失敗，嘗試簡單的字串替換
+                                if (!src.includes('v=' + timestamp)) {
+                                    const separator = src.includes('?') ? '&' : '?';
+                                    const newSrc = src.replace(/[?&]v=\d+/, '') + separator + 'v=' + timestamp;
+                                    script.src = newSrc;
+                                    updated = true;
+                                    console.log('已更新 script 版本號 (字串替換):', script.src);
+                                }
                             }
                         }
-                    }
-                });
-                
-                if (needsReload) {
-                    console.log('已更新所有 JavaScript 文件（包括 config.js）版本號，重新載入頁面以清除快取...');
-                    // 強制重新載入（不使用快取），此時 URL 已經沒有 nocache 參數
-                    setTimeout(function() {
+                    });
+                    
+                    if (updated) {
+                        console.log('已更新所有 JavaScript 文件（包括 config.js）版本號，重新載入頁面以清除快取...');
+                        // 強制重新載入（不使用快取）
                         window.location.reload(true);
-                    }, 50);
+                    } else {
+                        // 如果不需要更新，清除標記
+                        sessionStorage.removeItem(processedKey);
+                        console.log('所有 JavaScript 文件版本號已是最新，無需重新載入');
+                    }
+                }
+                
+                // 等待 DOM 載入完成後再更新
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', updateScriptVersions);
                 } else {
-                    console.log('所有 JavaScript 文件版本號已是最新，無需重新載入');
+                    // DOM 已經載入，但 script 標籤可能還沒完全解析，稍等一下
+                    setTimeout(updateScriptVersions, 50);
                 }
             }
         })();
@@ -72,8 +101,32 @@
                 <button id="nextMonth" class="btn btn-secondary">下個月 ▶</button>
                 <button id="reloadExcel" class="btn btn-reload" title="重新讀取 Excel 檔案">📄 重新讀取</button>
                 <button id="clearCache" class="btn btn-cache" title="清除快取並重新載入">🔄 清除快取</button>
+                <button id="settingsBtn" class="btn btn-settings" title="顯示設定">⚙️ 顯示設定</button>
             </div>
         </header>
+
+        <!-- 顯示設定面板 -->
+        <div id="settingsPanel" class="settings-panel">
+            <div class="settings-content">
+                <div class="settings-header">
+                    <h3>顯示設定</h3>
+                    <button id="closeSettings" class="close-settings">&times;</button>
+                </div>
+                <div class="settings-body">
+                    <div class="settings-section">
+                        <h4 class="settings-section-title">任務條顯示設定</h4>
+                        <p class="settings-description">選擇要在日曆任務條上顯示的欄位：</p>
+                        <div id="taskBarFieldsOptions" class="settings-options">
+                            <!-- 動態生成的選項將在這裡 -->
+                        </div>
+                    </div>
+                    <div class="settings-actions">
+                        <button id="applySettings" class="btn btn-primary">套用</button>
+                        <button id="resetSettings" class="btn btn-secondary">重置為預設</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- 環境篩選器 -->
         <div class="filter-section">
@@ -142,7 +195,8 @@
     <script src="js/excel-reader.js?v=30"></script>
     <script src="js/data-processor.js?v=30"></script>
     <script src="js/calendar.js?v=30"></script>
-    <script src="js/main.js?v=29"></script>
+    <script src="js/settings-panel.js?v=1"></script>
+    <script src="js/main.js?v=30"></script>
 </body>
 </html>
 
