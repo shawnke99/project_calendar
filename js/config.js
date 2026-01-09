@@ -76,10 +76,12 @@ const SystemConfig = {
     // 月曆顯示設定
     calendar: {
         maxDisplayTasks: 3,           // 每個日期格子最多顯示的任務數
-        maxTasksInBlock: 2,            // 每個環境區塊最多顯示的工作項目數
+        maxTasksInBlock: 3,            // 每個環境區塊最多顯示的工作項目數
         dayMinHeight: 130,             // 日期格子的最小高度
         taskBarHeight: 18,             // 跨日期任務條的高度
         gridGap: 2,                    // 格子間距（px）
+        // 多月份顯示設定
+        monthsToDisplay: 2,            // 同時顯示的月份數量（1-12，預設為 1，多月份時會上下排列）
         // 預設顯示日期區間（如果資料中沒有日期，或需要指定初始顯示月份）
         defaultYear: null,             // 預設年份（null = 自動使用資料中的最早年份）
         defaultMonth: null,            // 預設月份（0-11，null = 自動使用資料中的最早月份）

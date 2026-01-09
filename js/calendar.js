@@ -18,43 +18,246 @@ class Calendar {
     render() {
         const year = this.currentDate.getFullYear();
         const month = this.currentDate.getMonth();
+        const monthsToDisplay = this.config.calendar?.monthsToDisplay || 1;
 
         // 更新月份顯示
-        this.updateMonthDisplay(year, month);
+        this.updateMonthDisplay(year, month, monthsToDisplay);
 
-        // 取得當月任務
-        const tasksForMonth = this.dataProcessor.getTasksForMonth(year, month);
+        // 取得任務範圍
         const taskRanges = this.dataProcessor.getTaskRanges();
 
         // 清空月曆
         this.container.innerHTML = '';
-
-        // 計算當月第一天和最後一天
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const firstDayOfWeek = firstDay.getDay(); // 0 = 星期日
-        const daysInMonth = lastDay.getDate();
-
-        // 計算需要顯示的日期範圍（包含上個月的尾幾天和下個月的頭幾天）
-        const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
-        const startDate = new Date(firstDay);
-        startDate.setDate(startDate.getDate() - firstDayOfWeek);
-
-        // 建立日期格子
-        const dayElements = [];
-        for (let i = 0; i < totalCells; i++) {
-            const cellDate = new Date(startDate);
-            cellDate.setDate(startDate.getDate() + i);
-            // 確保時間設為 00:00:00 避免時區問題
-            cellDate.setHours(0, 0, 0, 0);
-
-            const dayElement = this.createDayElement(cellDate, year, month, tasksForMonth);
-            this.container.appendChild(dayElement);
-            dayElements.push({ date: new Date(cellDate), element: dayElement });
+        
+        // 清除多月份容器的樣式類別
+        this.container.className = 'calendar-grid';
+        if (monthsToDisplay > 1) {
+            this.container.classList.add(`months-${monthsToDisplay}`);
+            this.container.classList.add('layout-vertical'); // 固定使用縱向佈局
         }
 
-        // 渲染跨日期的任務條
-        this.renderSpanningTasks(dayElements, taskRanges, year, month);
+        // 單月份顯示：使用原來的簡單結構
+        if (monthsToDisplay === 1) {
+            // 取得當月任務
+            const tasksForMonth = this.dataProcessor.getTasksForMonth(year, month);
+            
+            // 計算當月第一天和最後一天
+            const firstDay = new Date(year, month, 1);
+            const lastDay = new Date(year, month + 1, 0);
+            const firstDayOfWeek = firstDay.getDay(); // 0 = 星期日
+            const daysInMonth = lastDay.getDate();
+
+            // 計算需要顯示的日期範圍（包含上個月的尾幾天和下個月的頭幾天）
+            const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
+            const startDate = new Date(firstDay);
+            startDate.setDate(startDate.getDate() - firstDayOfWeek);
+
+            // 建立日期格子
+            const dayElements = [];
+            for (let i = 0; i < totalCells; i++) {
+                const cellDate = new Date(startDate);
+                cellDate.setDate(startDate.getDate() + i);
+                // 確保時間設為 00:00:00 避免時區問題
+                cellDate.setHours(0, 0, 0, 0);
+
+                const dayElement = this.createDayElement(cellDate, year, month, tasksForMonth);
+                this.container.appendChild(dayElement);
+                dayElements.push({ date: new Date(cellDate), element: dayElement, year: year, month: month });
+            }
+
+            // 渲染跨日期的任務條（單月份）
+            this.renderSpanningTasks(dayElements, taskRanges, year, month);
+        } else {
+            // 多月份顯示：使用新的結構
+            const allDayElements = [];
+            for (let m = 0; m < monthsToDisplay; m++) {
+                const currentYear = new Date(year, month + m, 1).getFullYear();
+                const currentMonth = new Date(year, month + m, 1).getMonth();
+                
+                // 取得當月任務
+                const tasksForMonth = this.dataProcessor.getTasksForMonth(currentYear, currentMonth);
+                
+                // 建立月份容器
+                const monthContainer = document.createElement('div');
+                monthContainer.className = 'month-container';
+                monthContainer.setAttribute('data-year', currentYear);
+                monthContainer.setAttribute('data-month', currentMonth);
+                
+                // 建立月份標題
+                const monthTitle = document.createElement('div');
+                monthTitle.className = 'month-title';
+                monthTitle.textContent = `${currentYear}年${currentMonth + 1}月`;
+                monthContainer.appendChild(monthTitle);
+                
+                // 建立月份網格
+                const monthGrid = document.createElement('div');
+                monthGrid.className = 'month-grid';
+                
+                // 計算當月第一天和最後一天
+                const firstDay = new Date(currentYear, currentMonth, 1);
+                const lastDay = new Date(currentYear, currentMonth + 1, 0);
+                const firstDayOfWeek = firstDay.getDay(); // 0 = 星期日
+                const daysInMonth = lastDay.getDate();
+
+                // 計算需要顯示的日期範圍（包含上個月的尾幾天和下個月的頭幾天）
+                const totalCells = Math.ceil((firstDayOfWeek + daysInMonth) / 7) * 7;
+                const startDate = new Date(firstDay);
+                startDate.setDate(startDate.getDate() - firstDayOfWeek);
+
+                // 建立日期格子
+                const dayElements = [];
+                for (let i = 0; i < totalCells; i++) {
+                    const cellDate = new Date(startDate);
+                    cellDate.setDate(startDate.getDate() + i);
+                    // 確保時間設為 00:00:00 避免時區問題
+                    cellDate.setHours(0, 0, 0, 0);
+
+                    const dayElement = this.createDayElement(cellDate, currentYear, currentMonth, tasksForMonth);
+                    monthGrid.appendChild(dayElement);
+                    dayElements.push({ date: new Date(cellDate), element: dayElement, year: currentYear, month: currentMonth });
+                }
+                
+                monthContainer.appendChild(monthGrid);
+                this.container.appendChild(monthContainer);
+                allDayElements.push(...dayElements);
+            }
+
+            // 渲染跨日期的任務條（多月份）
+            this.renderSpanningTasksForMultipleMonths(allDayElements, taskRanges, year, month, monthsToDisplay);
+        }
+    }
+
+    /**
+     * 渲染跨日期的任務條（支援多月份）
+     * @param {Array} allDayElements - 所有月份的日期元素陣列
+     * @param {Map} taskRanges - 任務範圍映射
+     * @param {number} startYear - 起始年份
+     * @param {number} startMonth - 起始月份
+     * @param {number} monthsToDisplay - 顯示的月份數量
+     */
+    renderSpanningTasksForMultipleMonths(allDayElements, taskRanges, startYear, startMonth, monthsToDisplay) {
+        const displayedRanges = new Set(); // 記錄已顯示的範圍
+        const dayTaskCounts = new Map(); // 追蹤每個日期格子中已放置的任務條數量
+        
+        // 計算顯示的月份範圍
+        const displayMonths = [];
+        for (let m = 0; m < monthsToDisplay; m++) {
+            const currentYear = new Date(startYear, startMonth + m, 1).getFullYear();
+            const currentMonth = new Date(startYear, startMonth + m, 1).getMonth();
+            displayMonths.push({ year: currentYear, month: currentMonth });
+        }
+        
+        // 過濾出在顯示月份範圍內的任務範圍
+        let monthTaskRanges = Array.from(taskRanges.values()).filter(taskRange => {
+            if (!taskRange.dateRange || taskRange.dateRange.length === 0) return false;
+            
+            // 檢查日期範圍是否與任何顯示月份有交集
+            const hasDateInDisplayMonths = taskRange.dateRange.some(date => {
+                return displayMonths.some(displayMonth => {
+                    return date.getFullYear() === displayMonth.year && date.getMonth() === displayMonth.month;
+                });
+            });
+            
+            return hasDateInDisplayMonths;
+        });
+        
+        // 應用環境篩選
+        if (this.filteredEnvironments !== 'all' && this.filteredEnvironments) {
+            const filterSet = Array.isArray(this.filteredEnvironments) 
+                ? new Set(this.filteredEnvironments) 
+                : new Set([this.filteredEnvironments]);
+            
+            monthTaskRanges = monthTaskRanges.filter(taskRange => {
+                return filterSet.has(taskRange.environment);
+            });
+        }
+
+        monthTaskRanges.forEach(taskRange => {
+            if (displayedRanges.has(taskRange.rangeId)) return;
+            if (!taskRange.dateRange || taskRange.dateRange.length === 0) return;
+            
+            // 找出任務範圍在顯示月份範圍內的日期
+            const visibleDates = taskRange.dateRange.filter(date => {
+                if (!date) return false;
+                return displayMonths.some(displayMonth => {
+                    const d = new Date(date);
+                    d.setHours(0, 0, 0, 0);
+                    return d.getFullYear() === displayMonth.year && d.getMonth() === displayMonth.month;
+                });
+            });
+            
+            if (visibleDates.length === 0) return;
+            
+            // 按月份分組處理任務條
+            displayMonths.forEach(displayMonth => {
+                const monthDates = visibleDates.filter(date => {
+                    const d = new Date(date);
+                    d.setHours(0, 0, 0, 0);
+                    return d.getFullYear() === displayMonth.year && d.getMonth() === displayMonth.month;
+                });
+                
+                if (monthDates.length === 0) return;
+                
+                // 找出該月份內的開始和結束日期
+                const startDate = new Date(monthDates[0]);
+                startDate.setHours(0, 0, 0, 0);
+                const endDate = new Date(monthDates[monthDates.length - 1]);
+                endDate.setHours(0, 0, 0, 0);
+                
+                // 在 allDayElements 中查找該月份對應的日期元素
+                const monthDayElements = allDayElements.filter(d => {
+                    return d.year === displayMonth.year && d.month === displayMonth.month;
+                });
+                
+                // 在該月份的日期元素中查找對應的索引
+                const startIndex = monthDayElements.findIndex(d => {
+                    const dDate = new Date(d.date);
+                    dDate.setHours(0, 0, 0, 0);
+                    const sDate = new Date(startDate);
+                    sDate.setHours(0, 0, 0, 0);
+                    return dDate.getTime() === sDate.getTime();
+                });
+                
+                const endIndex = monthDayElements.findIndex(d => {
+                    const dDate = new Date(d.date);
+                    dDate.setHours(0, 0, 0, 0);
+                    const eDate = new Date(endDate);
+                    eDate.setHours(0, 0, 0, 0);
+                    return dDate.getTime() === eDate.getTime();
+                });
+                
+                if (startIndex !== -1 && endIndex !== -1 && startIndex <= endIndex) {
+                    // 計算在 allDayElements 中的實際索引
+                    const firstMonthIndex = allDayElements.findIndex(d => 
+                        d.year === displayMonth.year && d.month === displayMonth.month
+                    );
+                    const actualStartIndex = firstMonthIndex + startIndex;
+                    const actualEndIndex = firstMonthIndex + endIndex;
+                    
+                    const spanDays = actualEndIndex - actualStartIndex + 1;
+                    
+                    // 計算這個任務條應該放在哪一層（垂直位置）
+                    let maxTaskCount = 0;
+                    for (let i = actualStartIndex; i <= actualEndIndex; i++) {
+                        const count = dayTaskCounts.get(i) || 0;
+                        maxTaskCount = Math.max(maxTaskCount, count);
+                    }
+                    
+                    // 將這個任務條放在 maxTaskCount 層
+                    const taskBarIndex = maxTaskCount;
+                    
+                    // 更新這個日期範圍內所有日期的任務條計數
+                    for (let i = actualStartIndex; i <= actualEndIndex; i++) {
+                        dayTaskCounts.set(i, maxTaskCount + 1);
+                    }
+                    
+                    // 使用該月份的日期元素來創建任務條
+                    this.createSpanningTaskBar(taskRange, actualStartIndex, spanDays, allDayElements, taskBarIndex);
+                }
+            });
+            
+            displayedRanges.add(taskRange.rangeId);
+        });
     }
 
     /**
@@ -175,8 +378,11 @@ class Calendar {
      */
     createSpanningTaskBar(taskRange, startIndex, spanDays, dayElements, taskBarIndex = 0) {
         const startElement = dayElements[startIndex].element;
+        // 在多月份顯示時，任務條應該相對於月份網格定位
+        const monthGrid = startElement.closest('.month-grid');
         const calendarGrid = startElement.closest('.calendar-grid');
-        if (!calendarGrid) return;
+        const targetContainer = monthGrid || calendarGrid;
+        if (!targetContainer) return;
         
         // 建立任務條容器
         const taskBar = document.createElement('div');
@@ -198,9 +404,9 @@ class Calendar {
             const endIndex = startIndex + spanDays - 1;
             const endElement = endIndex < dayElements.length ? dayElements[endIndex].element : null;
             const endCellRect = endElement ? endElement.getBoundingClientRect() : null;
-            const gridRect = calendarGrid.getBoundingClientRect();
+            const gridRect = targetContainer.getBoundingClientRect();
             
-            // 計算相對於日曆網格的左邊距
+            // 計算相對於目標容器的左邊距
             const leftOffset = startCellRect.left - gridRect.left;
             
             // 計算單個格子的寬度
@@ -291,7 +497,7 @@ class Calendar {
                             this.showRangeDetails(taskRange, tasks);
                         });
                         
-                        calendarGrid.appendChild(secondSegment);
+                        targetContainer.appendChild(secondSegment);
                     }
                 }
                 
@@ -382,7 +588,7 @@ class Calendar {
         });
         
         // 將任務條添加到日曆網格層級（而不是單個日期格子），這樣才能跨越多個格子
-        calendarGrid.appendChild(taskBar);
+        targetContainer.appendChild(taskBar);
         
         // 在跨越的所有日期格子上添加佔位符（避免點擊穿透，並保持垂直空間）
         setTimeout(() => {
@@ -821,14 +1027,30 @@ class Calendar {
      * 更新月份顯示
      * @param {number} year - 年份
      * @param {number} month - 月份
+     * @param {number} monthsToDisplay - 顯示的月份數量
      */
-    updateMonthDisplay(year, month) {
+    updateMonthDisplay(year, month, monthsToDisplay = 1) {
         const monthDisplay = document.getElementById('currentMonth');
         if (monthDisplay) {
-            monthDisplay.textContent = `${year}年${month + 1}月`;
+            if (monthsToDisplay === 1) {
+                monthDisplay.textContent = `${year}年${month + 1}月`;
+            } else {
+                // 計算最後一個月份
+                const lastMonthDate = new Date(year, month + monthsToDisplay - 1, 1);
+                const lastYear = lastMonthDate.getFullYear();
+                const lastMonth = lastMonthDate.getMonth();
+                
+                if (year === lastYear) {
+                    // 同一年
+                    monthDisplay.textContent = `${year}年${month + 1}月 - ${lastMonth + 1}月`;
+                } else {
+                    // 跨年
+                    monthDisplay.textContent = `${year}年${month + 1}月 - ${lastYear}年${lastMonth + 1}月`;
+                }
+            }
         }
         
-        // 更新非工作日說明
+        // 更新非工作日說明（只顯示第一個月份）
         this.updateNonWorkingDaysInfo(year, month);
     }
 
@@ -945,7 +1167,8 @@ class Calendar {
      * 切換到上一個月
      */
     previousMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() - 1);
+        const monthsToDisplay = this.config.calendar?.monthsToDisplay || 1;
+        this.currentDate.setMonth(this.currentDate.getMonth() - monthsToDisplay);
         this.render();
     }
 
@@ -953,7 +1176,8 @@ class Calendar {
      * 切換到下一個月
      */
     nextMonth() {
-        this.currentDate.setMonth(this.currentDate.getMonth() + 1);
+        const monthsToDisplay = this.config.calendar?.monthsToDisplay || 1;
+        this.currentDate.setMonth(this.currentDate.getMonth() + monthsToDisplay);
         this.render();
     }
 

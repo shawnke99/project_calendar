@@ -404,6 +404,58 @@ body {
     box-sizing: border-box;
 }
 
+/* 多月份顯示樣式（固定使用縱向排列） */
+.calendar-grid.months-2,
+.calendar-grid.months-3,
+.calendar-grid.months-4,
+.calendar-grid.months-5,
+.calendar-grid.months-6,
+.calendar-grid.months-7,
+.calendar-grid.months-8,
+.calendar-grid.months-9,
+.calendar-grid.months-10,
+.calendar-grid.months-11,
+.calendar-grid.months-12 {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    grid-template-columns: none;
+}
+
+/* 月份容器 */
+.month-container {
+    flex: 1;
+    min-width: 0;
+    position: relative;
+}
+
+/* 月份標題 */
+.month-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #fef2f2 0%, #eff6ff 100%);
+    border-radius: 6px;
+    border-left: 4px solid #dc2626;
+    text-align: center;
+}
+
+/* 月份網格 */
+.month-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 2px;
+    background: #e0e0e0;
+    border: 2px solid #e0e0e0;
+    border-radius: 4px;
+    overflow: visible;
+    position: relative; /* 確保任務條可以相對於此定位 */
+    width: 100%;
+    box-sizing: border-box;
+}
+
 /* 日期格子 */
 .calendar-day {
     background: white;
