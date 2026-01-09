@@ -8,6 +8,8 @@ const SystemConfig = {
     environmentSpecificColors: {
         'IT準備': '#16537e',  // 灰色
         '平測切轉環境': '#10b981',  // 綠色
+        '平行測試環境': '#10b981',  // 綠色
+        '切轉上線環境': '#10b981',  // 綠色
         '資轉驗證環境': '#dc2626'   // 紅色（可選，如果沒有指定則使用調色盤）
     },
 
@@ -80,7 +82,7 @@ const SystemConfig = {
         maxDisplayTasks: 3,           // 每個日期格子最多顯示的環境+梯次區塊數（當 enableTaskLimits 為 true 時生效）
         maxTasksInBlock: 3,            // 每個環境+梯次區塊中最多顯示的工作項目數（當 enableTaskLimits 為 true 時生效）
         dayMinHeight: 150,             // 日期格子的最小高度
-        taskBarHeight: 25,             // 跨日期任務條的高度
+        taskBarHeight: 20,             // 跨日期任務條的高度
         gridGap: 2,                    // 格子間距（px）
         // 響應式設定
         autoResize: true,              // 是否在視窗大小改變時自動重新渲染日曆
@@ -206,7 +208,11 @@ const SystemConfig = {
         // 是否啟用虛擬滾動（當任務很多時，只渲染可見區域的日期格子）
         virtualScroll: false,
         // 虛擬滾動緩衝區（在可見區域前後額外渲染的日期格子數量）
-        virtualScrollBuffer: 7  // 預設為一週的日期格子
+        virtualScrollBuffer: 7,  // 預設為一週的日期格子
+        // 是否使用佔位符（當啟用虛擬滾動時，使用佔位符保持佈局）
+        usePlaceholders: true,   // 使用佔位符可以保持正確的佈局和滾動位置
+        // 當日期格子數量超過此值時，自動啟用虛擬滾動（即使 virtualScroll 為 false）
+        autoEnableThreshold: 100  // 當有超過 100 個日期格子時自動啟用
     },
 
 

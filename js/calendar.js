@@ -14,8 +14,15 @@ class Calendar {
         // 虛擬滾動相關屬性
         this.virtualScrollEnabled = this.config.performance?.virtualScroll === true;
         this.virtualScrollBuffer = this.config.performance?.virtualScrollBuffer || 7;
+        this.autoEnableThreshold = this.config.performance?.autoEnableThreshold || 100;
         this.visibleDayElements = new Map(); // 儲存可見的日期元素
+        this.renderedDayElements = new Set(); // 儲存已渲染的日期元素
         this.observer = null; // IntersectionObserver 實例
+        
+        // 檢查是否需要自動啟用虛擬滾動
+        if (!this.virtualScrollEnabled && this.autoEnableThreshold > 0) {
+            // 在 render() 方法中檢查日期格子數量
+        }
         
         // 應用 dayMinHeight 配置到 CSS
         this.applyDayMinHeight();
@@ -84,14 +91,52 @@ class Calendar {
      * 確保日期格子的內容已渲染（用於虛擬滾動）
      */
     ensureDayContentRendered(dayElement, dateKey) {
-        // 如果已經有任務容器，表示已渲染，跳過
-        if (dayElement.querySelector('.tasks-container')) {
+        if (!dayElement || this.renderedDayElements.has(dateKey)) {
             return;
         }
         
-        // 虛擬滾動模式下，任務內容會在正常的渲染流程中處理
-        // 這裡主要是標記元素為可見，實際渲染由 renderTasksInDayCells 等方法處理
+        // 標記為已渲染
+        this.renderedDayElements.add(dateKey);
+        
+        // 渲染任務內容（如果需要）
+        const taskRanges = this.dataProcessor.getTaskRanges();
+        const year = this.currentDate.getFullYear();
+        const month = this.currentDate.getMonth();
+        
+        // 這裡可以觸發任務渲染邏輯
+        // 注意：由於任務條可能跨多個日期，完整的任務渲染還需要在 render() 方法中處理
     }
+    
+    /**
+     * 用實際日期格子替換佔位符
+     */
+    replacePlaceholderWithDay(dateKey) {
+        const placeholder = this.dayPlaceholders.get(dateKey);
+        if (!placeholder) return;
+        
+        // 解析日期
+        const [year, month, day] = dateKey.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        
+        // 創建實際的日期格子
+        const dayElement = this.createDayElement(date, year, month);
+        
+        // 替換佔位符
+        placeholder.replaceWith(dayElement);
+        
+        // 更新映射
+        this.dayPlaceholders.delete(dateKey);
+        this.renderedDayElements.add(dateKey);
+        
+        // 觀察新元素
+        if (this.observer) {
+            this.observer.observe(dayElement);
+        }
+        
+        // 渲染任務內容
+        this.ensureDayContentRendered(dayElement, dateKey);
+    }
+    
     
     /**
      * 清理虛擬滾動觀察器
@@ -260,6 +305,7 @@ class Calendar {
     renderSpanningTasksForMultipleMonths(allDayElements, taskRanges, startYear, startMonth, monthsToDisplay) {
         const displayedRanges = new Set(); // 記錄已顯示的範圍
         const dayTaskCounts = new Map(); // 追蹤每個日期格子中已放置的任務條數量
+        const renderedTaskBars = []; // 記錄所有已渲染的任務條，用於最終重疊檢測
         
         // 計算顯示的月份範圍
         const displayMonths = [];
@@ -374,11 +420,102 @@ class Calendar {
                     }
                     
                     // 使用該月份的日期元素來創建任務條
-                    this.createSpanningTaskBar(taskRange, actualStartIndex, spanDays, allDayElements, taskBarIndex);
+                    const taskBarElement = this.createSpanningTaskBar(taskRange, actualStartIndex, spanDays, allDayElements, taskBarIndex);
+                    if (taskBarElement) {
+                        renderedTaskBars.push(taskBarElement);
+                    }
                 }
             });
             
             displayedRanges.add(taskRange.rangeId);
+        });
+        
+        // 所有任務條渲染完成後，進行最終的重疊檢測和調整
+        // 使用延遲確保所有任務條都已完全渲染（包括 setTimeout 中的內容）
+        if (renderedTaskBars.length > 0) {
+            setTimeout(() => {
+                this.finalizeTaskBarPositions(renderedTaskBars);
+            }, 200); // 延遲時間需要大於 createSpanningTaskBar 中的 setTimeout (0ms)
+        }
+    }
+
+    /**
+     * 最終調整所有任務條的位置，確保不會重疊
+     * @param {Array} taskBars - 所有已渲染的任務條元素陣列
+     */
+    finalizeTaskBarPositions(taskBars) {
+        if (!taskBars || taskBars.length === 0) return;
+        
+        // 過濾出有效的任務條（已添加到 DOM 的）
+        const validBars = taskBars.filter(bar => bar && bar.parentElement);
+        if (validBars.length === 0) return;
+        
+        const targetContainer = validBars[0].closest('.month-grid, .calendar-grid');
+        if (!targetContainer) return;
+        
+        const gridRect = targetContainer.getBoundingClientRect();
+        const taskBarSpacing = 4;
+        
+        // 使用多次 requestAnimationFrame 確保所有任務條都已完全渲染
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // 按 top 位置排序，從上到下處理
+                const sortedBars = validBars.slice().sort((a, b) => {
+                    const aTop = a.getBoundingClientRect().top;
+                    const bTop = b.getBoundingClientRect().top;
+                    return aTop - bTop;
+                });
+                
+                // 對每個任務條進行重疊檢測和調整
+                sortedBars.forEach((currentBar, index) => {
+                    const currentRect = currentBar.getBoundingClientRect();
+                    const currentTop = currentRect.top - gridRect.top;
+                    const currentBottom = currentTop + currentRect.height;
+                    const currentLeft = currentRect.left - gridRect.left;
+                    const currentRight = currentLeft + currentRect.width;
+                    
+                    let newTop = currentTop;
+                    let needsAdjustment = false;
+                    
+                    // 檢查與之前已處理的任務條是否重疊
+                    for (let i = 0; i < index; i++) {
+                        const prevBar = sortedBars[i];
+                        const prevRect = prevBar.getBoundingClientRect();
+                        const prevTop = prevRect.top - gridRect.top;
+                        const prevBottom = prevTop + prevRect.height;
+                        const prevLeft = prevRect.left - gridRect.left;
+                        const prevRight = prevLeft + prevRect.width;
+                        
+                        // 檢查水平重疊（任務條在相同或重疊的日期範圍）
+                        const horizontalOverlap = !(currentRight <= prevLeft || currentLeft >= prevRight);
+                        
+                        if (horizontalOverlap) {
+                            // 檢查垂直重疊
+                            if (newTop < prevBottom && (newTop + currentRect.height) > prevTop) {
+                                // 如果重疊，調整到前一個任務條下方
+                                newTop = prevBottom + taskBarSpacing;
+                                needsAdjustment = true;
+                            }
+                        }
+                    }
+                    
+                    // 如果需要調整，更新 top 位置
+                    if (needsAdjustment) {
+                        currentBar.style.top = `${newTop}px`;
+                        
+                        // 如果這個任務條有第二段（跨週情況），也需要調整第二段
+                        const secondSegmentId = currentBar.getAttribute('data-second-segment-id');
+                        if (secondSegmentId) {
+                            const segmentElement = document.getElementById(secondSegmentId);
+                            if (segmentElement) {
+                                const offset = newTop - currentTop;
+                                const segmentTop = parseFloat(segmentElement.style.top) || 0;
+                                segmentElement.style.top = `${segmentTop + offset}px`;
+                            }
+                        }
+                    }
+                });
+            });
         });
     }
 
@@ -392,6 +529,7 @@ class Calendar {
     renderSpanningTasks(dayElements, taskRanges, year, month) {
         const displayedRanges = new Set(); // 記錄已顯示的範圍
         const dayTaskCounts = new Map(); // 追蹤每個日期格子中已放置的任務條數量（用於垂直堆疊）
+        const renderedTaskBars = []; // 記錄所有已渲染的任務條，用於最終重疊檢測
         
         // 過濾出當前月份的任務範圍
         let monthTaskRanges = Array.from(taskRanges.values()).filter(taskRange => {
@@ -507,7 +645,10 @@ class Calendar {
                     dayTaskCounts.set(i, maxTaskCount + 1);
                 }
                 
-                this.createSpanningTaskBar(taskRange, startIndex, spanDays, dayElements, taskBarIndex);
+                const taskBarElement = this.createSpanningTaskBar(taskRange, startIndex, spanDays, dayElements, taskBarIndex);
+                if (taskBarElement) {
+                    renderedTaskBars.push(taskBarElement);
+                }
             } else {
                 // 除錯資訊
                 if (this.config.debug?.showConsoleLogs) {
@@ -524,6 +665,94 @@ class Calendar {
                 }
             }
         });
+        
+        // 所有任務條渲染完成後，進行最終的重疊檢測和調整
+        if (renderedTaskBars.length > 0) {
+            // 使用延遲確保所有任務條都已完全渲染（包括 setTimeout 中的內容）
+            setTimeout(() => {
+                this.finalizeTaskBarPositions(renderedTaskBars);
+            }, 200); // 延遲時間需要大於 createSpanningTaskBar 中的 setTimeout (0ms)
+        }
+    }
+
+    /**
+     * 最終調整所有任務條的位置，確保不會重疊
+     * @param {Array} taskBars - 所有已渲染的任務條元素陣列
+     */
+    finalizeTaskBarPositions(taskBars) {
+        if (!taskBars || taskBars.length === 0) return;
+        
+        // 過濾出有效的任務條（已添加到 DOM 的）
+        const validBars = taskBars.filter(bar => bar && bar.parentElement);
+        if (validBars.length === 0) return;
+        
+        const targetContainer = validBars[0].closest('.month-grid, .calendar-grid');
+        if (!targetContainer) return;
+        
+        const gridRect = targetContainer.getBoundingClientRect();
+        const taskBarSpacing = 4;
+        
+        // 使用多次 requestAnimationFrame 確保所有任務條都已完全渲染
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                // 按 top 位置排序，從上到下處理
+                const sortedBars = validBars.slice().sort((a, b) => {
+                    const aTop = a.getBoundingClientRect().top;
+                    const bTop = b.getBoundingClientRect().top;
+                    return aTop - bTop;
+                });
+                
+                // 對每個任務條進行重疊檢測和調整
+                sortedBars.forEach((currentBar, index) => {
+                    const currentRect = currentBar.getBoundingClientRect();
+                    const currentTop = currentRect.top - gridRect.top;
+                    const currentBottom = currentTop + currentRect.height;
+                    const currentLeft = currentRect.left - gridRect.left;
+                    const currentRight = currentLeft + currentRect.width;
+                    
+                    let newTop = currentTop;
+                    let needsAdjustment = false;
+                    
+                    // 檢查與之前已處理的任務條是否重疊
+                    for (let i = 0; i < index; i++) {
+                        const prevBar = sortedBars[i];
+                        const prevRect = prevBar.getBoundingClientRect();
+                        const prevTop = prevRect.top - gridRect.top;
+                        const prevBottom = prevTop + prevRect.height;
+                        const prevLeft = prevRect.left - gridRect.left;
+                        const prevRight = prevLeft + prevRect.width;
+                        
+                        // 檢查水平重疊（任務條在相同或重疊的日期範圍）
+                        const horizontalOverlap = !(currentRight <= prevLeft || currentLeft >= prevRight);
+                        
+                        if (horizontalOverlap) {
+                            // 檢查垂直重疊
+                            if (newTop < prevBottom && (newTop + currentRect.height) > prevTop) {
+                                // 如果重疊，調整到前一個任務條下方
+                                newTop = prevBottom + taskBarSpacing;
+                                needsAdjustment = true;
+                            }
+                        }
+                    }
+                    
+                    // 如果需要調整，更新 top 位置
+                    if (needsAdjustment) {
+                        currentBar.style.top = `${newTop}px`;
+                        
+                        // 如果這個任務條有第二段（跨週情況），也需要調整第二段
+                        const secondSegmentId = currentBar.getAttribute('data-second-segment-id');
+                        if (secondSegmentId) {
+                            const segmentElement = document.getElementById(secondSegmentId);
+                            if (segmentElement) {
+                                const offset = newTop - currentTop;
+                                const segmentTop = parseFloat(segmentElement.style.top) || 0;
+                                segmentElement.style.top = `${segmentTop + offset}px`;
+                            }
+                        }
+                    }
+                });
+            });
+        });
     }
 
     /**
@@ -533,6 +762,7 @@ class Calendar {
      * @param {number} spanDays - 跨越天數
      * @param {Array} dayElements - 日期元素陣列
      * @param {number} taskBarIndex - 任務條的垂直層級索引（用於堆疊）
+     * @returns {HTMLElement} 創建的任務條元素
      */
     createSpanningTaskBar(taskRange, startIndex, spanDays, dayElements, taskBarIndex = 0) {
         const startElement = dayElements[startIndex].element;
@@ -540,7 +770,7 @@ class Calendar {
         const monthGrid = startElement.closest('.month-grid');
         const calendarGrid = startElement.closest('.calendar-grid');
         const targetContainer = monthGrid || calendarGrid;
-        if (!targetContainer) return;
+        if (!targetContainer) return null;
         
         // 建立任務條容器
         const taskBar = document.createElement('div');
@@ -593,24 +823,77 @@ class Calendar {
                 // 計算垂直位置（使用配置值）
                 const taskBarHeight = this.config.calendar?.taskBarHeight || 24;
                 const taskBarMargin = 2;
-                const taskBarSpacing = 2;
+                const taskBarSpacing = 4; // 增加間距，避免重疊
                 const tasksContainer = startElement.querySelector('.tasks-container');
-                let topOffset = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
+                
+                // 設置 CSS 變數以便 CSS 使用
+                taskBar.style.setProperty('--task-bar-height', `${taskBarHeight}px`);
+                
+                // 計算基礎 top 位置（基於任務條索引和間距）
+                let baseTopOffset = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
                 
                 if (tasksContainer) {
                     const containerRect = tasksContainer.getBoundingClientRect();
                     const cellTop = containerRect.top - gridRect.top;
-                    topOffset = cellTop + topOffset;
+                    baseTopOffset = cellTop + baseTopOffset;
                 } else {
                     const dayPadding = 8;
                     const dayNumberHeight = 28;
-                    topOffset = dayPadding + dayNumberHeight + 6 + topOffset;
+                    baseTopOffset = dayPadding + dayNumberHeight + 6 + baseTopOffset;
+                }
+                
+                // 確保 topOffset 不會與其他任務條重疊（考慮動態高度）
+                let topOffset = baseTopOffset;
+                
+                // 檢查是否有其他任務條在同一位置（在起始日期格子中）
+                const existingBars = Array.from(targetContainer.querySelectorAll('.spanning-task-bar'));
+                let adjusted = false;
+                let maxBottom = topOffset;
+                
+                for (const bar of existingBars) {
+                    const barRect = bar.getBoundingClientRect();
+                    const barTop = barRect.top - gridRect.top;
+                    const barBottom = barTop + barRect.height;
+                    
+                    // 檢查是否與現有任務條在垂直方向上重疊（考慮起始位置和寬度）
+                    const barLeft = barRect.left - gridRect.left;
+                    const barRight = barLeft + barRect.width;
+                    const currentBarLeft = leftOffset;
+                    const currentBarRight = leftOffset + firstSegmentWidth;
+                    
+                    // 檢查水平重疊（任務條在相同或重疊的日期範圍）
+                    const horizontalOverlap = !(currentBarRight <= barLeft || currentBarLeft >= barRight);
+                    
+                    if (horizontalOverlap) {
+                        // 檢查垂直重疊
+                        if (topOffset < barBottom && (topOffset + taskBarHeight) > barTop) {
+                            // 如果重疊，調整到現有任務條下方
+                            topOffset = barBottom + taskBarSpacing;
+                            adjusted = true;
+                        }
+                        // 記錄最大底部位置
+                        maxBottom = Math.max(maxBottom, barBottom);
+                    }
+                }
+                
+                // 如果沒有調整，使用計算出的位置
+                if (!adjusted) {
+                    topOffset = baseTopOffset;
                 }
                 
                 // 設定第一段任務條的位置和寬度
                 taskBar.style.left = `${leftOffset}px`;
                 taskBar.style.top = `${topOffset}px`;
                 taskBar.style.width = `${firstSegmentWidth}px`;
+                taskBar.style.maxWidth = `${firstSegmentWidth}px`; // 確保不超過容器寬度
+                
+                // 等待內容渲染後，更新最小高度（最終重疊檢測會在 finalizeTaskBarPositions 中進行）
+                requestAnimationFrame(() => {
+                    const actualHeight = taskBar.getBoundingClientRect().height;
+                    if (actualHeight > taskBarHeight) {
+                        taskBar.style.minHeight = `${actualHeight}px`;
+                    }
+                });
                 
                 // 如果還有剩餘天數，創建第二段（下一行開始到結束格子）
                 const remainingDays = spanDays - daysToEndOfRow;
@@ -623,26 +906,45 @@ class Calendar {
                         const nextRowLeftOffset = nextRowStartRect.left - gridRect.left;
                         const secondSegmentWidth = (cellWidth * remainingDays) + (gridGap * (remainingDays - 1));
                         
-                        // 計算下一行的 top 位置
+                        // 計算下一行的 top 位置（使用與第一段相同的垂直層級）
                         const nextRowTopOffset = endCellRect.top - gridRect.top;
                         const nextRowTasksContainer = endElement.querySelector('.tasks-container');
-                        let nextRowTop = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
+                        let nextRowBaseTop = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
                         
                         if (nextRowTasksContainer) {
                             const nextRowContainerRect = nextRowTasksContainer.getBoundingClientRect();
-                            nextRowTop = nextRowContainerRect.top - gridRect.top + taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
+                            nextRowBaseTop = nextRowContainerRect.top - gridRect.top + taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
                         } else {
                             const dayPadding = 8;
                             const dayNumberHeight = 28;
-                            nextRowTop = nextRowTopOffset + dayPadding + dayNumberHeight + 6 + taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
+                            nextRowBaseTop = nextRowTopOffset + dayPadding + dayNumberHeight + 6 + taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
                         }
+                        
+                        // 確保第二段與第一段在同一垂直層級（使用相同的相對偏移）
+                        // 計算第一段相對於其基礎位置的偏移
+                        const firstSegmentOffset = topOffset - baseTopOffset;
+                        const nextRowTop = nextRowBaseTop + firstSegmentOffset;
                         
                         // 創建第二段任務條
                         const secondSegment = taskBar.cloneNode(true);
                         secondSegment.style.left = `${nextRowLeftOffset}px`;
                         secondSegment.style.top = `${nextRowTop}px`;
                         secondSegment.style.width = `${secondSegmentWidth}px`;
+                        secondSegment.style.maxWidth = `${secondSegmentWidth}px`; // 確保不超過容器寬度
                         secondSegment.style.zIndex = '5';
+                        
+                        // 等待內容渲染後，更新最小高度（最終重疊檢測會在 finalizeTaskBarPositions 中進行）
+                        requestAnimationFrame(() => {
+                            const actualHeight = secondSegment.getBoundingClientRect().height;
+                            if (actualHeight > taskBarHeight) {
+                                secondSegment.style.minHeight = `${actualHeight}px`;
+                            }
+                        });
+                        
+                        // 記錄第二段的關聯，以便在最終調整時一起處理
+                        const secondSegmentId = `second-segment-${taskRange.rangeId}`;
+                        secondSegment.id = secondSegmentId;
+                        taskBar.setAttribute('data-second-segment-id', secondSegmentId);
                         
                         // 添加點擊事件
                         secondSegment.addEventListener('click', (e) => {
@@ -688,24 +990,102 @@ class Calendar {
                 // 計算垂直位置（使用配置值）
                 const taskBarHeight = this.config.calendar?.taskBarHeight || 24;
                 const taskBarMargin = 2;
-                const taskBarSpacing = 2;
+                const taskBarSpacing = 4; // 增加間距，避免重疊
                 const tasksContainer = startElement.querySelector('.tasks-container');
-                let topOffset = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
+                
+                // 設置 CSS 變數以便 CSS 使用
+                taskBar.style.setProperty('--task-bar-height', `${taskBarHeight}px`);
+                
+                // 計算基礎 top 位置（基於任務條索引和間距）
+                let baseTopOffset = taskBarIndex * (taskBarHeight + taskBarSpacing) + taskBarMargin;
                 
                 if (tasksContainer) {
                     const containerRect = tasksContainer.getBoundingClientRect();
                     const cellTop = containerRect.top - gridRect.top;
-                    topOffset = cellTop + topOffset;
+                    baseTopOffset = cellTop + baseTopOffset;
                 } else {
                     const dayPadding = 8;
                     const dayNumberHeight = 28;
-                    topOffset = dayPadding + dayNumberHeight + 6 + topOffset;
+                    baseTopOffset = dayPadding + dayNumberHeight + 6 + baseTopOffset;
+                }
+                
+                // 確保 topOffset 不會與其他任務條重疊
+                let topOffset = baseTopOffset;
+                
+                // 檢查是否有其他任務條在同一位置（在起始日期格子中）
+                const existingBars = targetContainer.querySelectorAll('.spanning-task-bar');
+                let adjusted = false;
+                for (const bar of existingBars) {
+                    const barRect = bar.getBoundingClientRect();
+                    const barTop = barRect.top - gridRect.top;
+                    const barBottom = barTop + barRect.height;
+                    
+                    // 檢查是否與現有任務條重疊（在起始位置）
+                    if (Math.abs(barTop - topOffset) < (taskBarHeight + taskBarSpacing) && 
+                        Math.abs(barTop - topOffset) > 0) {
+                        // 如果重疊，調整到下一層
+                        topOffset = barBottom + taskBarSpacing;
+                        adjusted = true;
+                    }
+                }
+                
+                // 如果沒有調整，使用計算出的位置
+                if (!adjusted) {
+                    topOffset = baseTopOffset;
                 }
                 
                 // 設定任務條的位置和寬度
                 taskBar.style.left = `${leftOffset}px`;
                 taskBar.style.top = `${topOffset}px`;
                 taskBar.style.width = `${totalWidth}px`;
+                taskBar.style.maxWidth = `${totalWidth}px`; // 確保不超過容器寬度
+                
+                // 等待內容渲染後，重新計算高度並調整位置（避免重疊）
+                requestAnimationFrame(() => {
+                    const actualHeight = taskBar.getBoundingClientRect().height;
+                    if (actualHeight > taskBarHeight) {
+                        taskBar.style.minHeight = `${actualHeight}px`;
+                        
+                        // 如果換行了，重新檢查重疊並調整 top 位置
+                        const currentTop = parseFloat(taskBar.style.top) || topOffset;
+                        const currentBottom = currentTop + actualHeight;
+                        
+                        // 檢查是否與其他任務條重疊
+                        const allBars = Array.from(targetContainer.querySelectorAll('.spanning-task-bar'));
+                        let needsAdjustment = false;
+                        let newTop = currentTop;
+                        
+                        for (const bar of allBars) {
+                            if (bar === taskBar) continue; // 跳過自己
+                            
+                            const barRect = bar.getBoundingClientRect();
+                            const barTop = barRect.top - gridRect.top;
+                            const barBottom = barTop + barRect.height;
+                            
+                            // 檢查水平重疊
+                            const barLeft = barRect.left - gridRect.left;
+                            const barRight = barLeft + barRect.width;
+                            const currentBarLeft = leftOffset;
+                            const currentBarRight = leftOffset + totalWidth;
+                            
+                            const horizontalOverlap = !(currentBarRight <= barLeft || currentBarLeft >= barRight);
+                            
+                            if (horizontalOverlap) {
+                                // 檢查垂直重疊
+                                if (currentTop < barBottom && currentBottom > barTop) {
+                                    // 如果重疊，調整到現有任務條下方
+                                    newTop = barBottom + taskBarSpacing;
+                                    needsAdjustment = true;
+                                }
+                            }
+                        }
+                        
+                        // 如果需要調整，更新 top 位置
+                        if (needsAdjustment) {
+                            taskBar.style.top = `${newTop}px`;
+                        }
+                    }
+                });
                 
                 if (this.config.debug?.showConsoleLogs && this.config.debug?.logLevel === 'debug') {
                     console.log('任務條位置計算:', {
@@ -1132,25 +1512,13 @@ class Calendar {
         const hasFieldsToShow = Object.keys(hoverDropdownFields).some(key => hoverDropdownFields[key] === true);
         if (!hasFieldsToShow) return;
         
-        // 創建下拉層容器
+        // 創建下拉層容器（樣式主要由 CSS 控制，這裡只設置必要的動態樣式）
         const dropdown = document.createElement('div');
         dropdown.className = 'task-hover-dropdown';
-        dropdown.style.position = 'absolute';
-        dropdown.style.zIndex = '20';
-        dropdown.style.marginTop = '4px';
-        dropdown.style.padding = '12px';
-        dropdown.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
-        dropdown.style.backdropFilter = 'blur(10px)';
-        dropdown.style.borderRadius = '8px';
-        dropdown.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)';
-        dropdown.style.minWidth = '250px';
-        dropdown.style.maxWidth = '450px';
+        // 只設置需要動態計算的樣式，其他由 CSS 控制
         dropdown.style.opacity = '0';
         dropdown.style.transform = 'translateY(-5px)';
-        dropdown.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
         dropdown.style.display = 'none'; // 預設隱藏
-        dropdown.style.flexDirection = 'column';
-        dropdown.style.gap = '8px';
         
         // 將下拉層添加到目標容器
         const container = targetContainer || taskBar.closest('.month-grid') || taskBar.closest('.calendar-grid');
@@ -1166,26 +1534,18 @@ class Calendar {
             
             const row = document.createElement('div');
             row.className = 'dropdown-info-row';
-            row.style.display = 'flex';
-            row.style.alignItems = 'flex-start';
-            row.style.gap = '8px';
-            row.style.padding = '4px 0';
             
             const labelSpan = document.createElement('span');
             labelSpan.className = 'dropdown-label';
             labelSpan.textContent = label + '：';
-            labelSpan.style.fontWeight = '600';
-            labelSpan.style.color = '#666';
-            labelSpan.style.minWidth = '80px';
-            labelSpan.style.flexShrink = '0';
             row.appendChild(labelSpan);
             
             const valueSpan = document.createElement('span');
             valueSpan.className = 'dropdown-value';
             valueSpan.textContent = value;
-            valueSpan.style.color = color || '#333';
-            valueSpan.style.flex = '1';
-            valueSpan.style.wordBreak = 'break-word';
+            if (color) {
+                valueSpan.style.color = color;
+            }
             row.appendChild(valueSpan);
             
             return row;
@@ -1215,20 +1575,14 @@ class Calendar {
                 taskChipsContainer.style.display = 'flex';
                 taskChipsContainer.style.flexWrap = 'wrap';
                 taskChipsContainer.style.gap = '6px';
+                taskChipsContainer.style.width = '100%';
+                taskChipsContainer.style.boxSizing = 'border-box';
                 
                 taskContents.forEach((content) => {
                     const taskChip = document.createElement('span');
                     taskChip.className = 'task-item-chip';
                     taskChip.textContent = content;
-                    taskChip.style.backgroundColor = '#8b5cf6';
-                    taskChip.style.color = '#ffffff';
-                    taskChip.style.padding = '4px 10px';
-                    taskChip.style.borderRadius = '12px';
-                    taskChip.style.fontSize = '0.75em';
-                    taskChip.style.fontWeight = '500';
-                    taskChip.style.whiteSpace = 'nowrap';
-                    taskChip.style.display = 'inline-block';
-                    taskChip.title = content;
+                    taskChip.title = content; // 懸停顯示完整內容
                     taskChipsContainer.appendChild(taskChip);
                 });
                 
@@ -1450,7 +1804,13 @@ class Calendar {
             dropdown.style.top = `${taskBarRect.bottom - gridRect.top + 4}px`;
         };
         
+        let leaveTimeout = null;
+        
         taskBar.addEventListener('mouseenter', () => {
+            if (leaveTimeout) {
+                clearTimeout(leaveTimeout);
+                leaveTimeout = null;
+            }
             updateDropdownPosition();
             dropdown.style.display = 'flex';
             requestAnimationFrame(() => {
@@ -1460,30 +1820,38 @@ class Calendar {
         });
         
         taskBar.addEventListener('mouseleave', () => {
-            dropdown.style.opacity = '0';
-            dropdown.style.transform = 'translateY(-5px)';
-            setTimeout(() => {
-                if (dropdown.style.opacity === '0') {
-                    dropdown.style.display = 'none';
-                }
-            }, 200);
+            leaveTimeout = setTimeout(() => {
+                dropdown.style.opacity = '0';
+                dropdown.style.transform = 'translateY(-5px)';
+                setTimeout(() => {
+                    if (dropdown.style.opacity === '0') {
+                        dropdown.style.display = 'none';
+                    }
+                }, 200);
+            }, 100); // 短暫延遲，允許滑鼠移動到下拉層
         });
         
         // 當滑鼠移到下拉層時，保持顯示
         dropdown.addEventListener('mouseenter', () => {
+            if (leaveTimeout) {
+                clearTimeout(leaveTimeout);
+                leaveTimeout = null;
+            }
             updateDropdownPosition();
             dropdown.style.opacity = '1';
             dropdown.style.transform = 'translateY(0)';
         });
         
         dropdown.addEventListener('mouseleave', () => {
-            dropdown.style.opacity = '0';
-            dropdown.style.transform = 'translateY(-5px)';
-            setTimeout(() => {
-                if (dropdown.style.opacity === '0') {
-                    dropdown.style.display = 'none';
-                }
-            }, 200);
+            leaveTimeout = setTimeout(() => {
+                dropdown.style.opacity = '0';
+                dropdown.style.transform = 'translateY(-5px)';
+                setTimeout(() => {
+                    if (dropdown.style.opacity === '0') {
+                        dropdown.style.display = 'none';
+                    }
+                }, 200);
+            }, 100);
         });
     }
 

@@ -408,6 +408,9 @@ body {
     position: relative; /* 確保跨日期任務條可以相對於此定位 */
     width: 100%;
     box-sizing: border-box;
+    /* 優化渲染性能 */
+    will-change: contents;
+    contain: layout style paint;
 }
 
 /* 多月份顯示樣式（固定使用縱向排列） */
@@ -472,6 +475,9 @@ body {
     display: flex;
     flex-direction: column;
     overflow: visible; /* 允許任務條溢出到其他格子 */
+    /* 優化渲染性能 */
+    contain: layout style;
+    will-change: contents;
 }
 
 .calendar-day:hover {
@@ -548,11 +554,10 @@ body {
     left: 0;
     z-index: 5;
     display: flex;
-    align-items: center;
-    flex-wrap: nowrap; /* 不換行，保持單行顯示 */
+    align-items: flex-start; /* 改為 flex-start，允許換行時對齊 */
+    flex-wrap: wrap; /* 允許換行，自動適應內容 */
     padding: 4px 6px;
-    margin-top: 2px;
-    margin-bottom: 2px;
+    margin: 0; /* 移除 margin，由 top 位置控制間距 */
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.7em;
@@ -560,6 +565,11 @@ body {
     box-sizing: border-box; /* 確保寬度計算一致，包含 border 和 padding */
     overflow: visible; /* 允許下拉層顯示 */
     gap: 4px; /* 元素間距 */
+    /* 確保任務條不會互相重疊，但允許動態高度 */
+    min-height: var(--task-bar-height, 24px);
+    /* 移除固定高度，允許根據內容自動調整 */
+    width: 100%; /* 確保使用完整寬度 */
+    max-width: 100%; /* 不超過容器寬度 */
 }
 
 /* 懸停效果（僅在啟用時） */
@@ -573,17 +583,21 @@ body {
 
 .task-bar-badge {
     flex-shrink: 0;
-    white-space: nowrap;
+    white-space: nowrap; /* badge 本身不換行 */
     padding: 1px 4px;
     border-radius: 2px;
     font-size: 0.6em;
     margin-left: 4px;
     font-weight: 600;
+    /* 允許 badge 在空間不足時換行到下一行 */
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
 }
 
 /* 懸停下拉層樣式 */
 .task-hover-dropdown {
-    display: none; /* 預設隱藏 */
+    display: none; /* 預設隱藏，hover 時改為 flex */
     position: absolute;
     z-index: 20;
     margin-top: 4px;
@@ -594,12 +608,20 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
     min-width: 250px;
     max-width: 450px;
+    width: max-content; /* 根據內容自動調整寬度 */
     opacity: 0;
     transform: translateY(-5px);
     transition: opacity 0.2s ease, transform 0.2s ease;
     pointer-events: auto; /* 確保可以互動 */
     flex-direction: column;
     gap: 8px;
+    box-sizing: border-box; /* 確保 padding 包含在寬度內 */
+}
+
+/* hover 時顯示 */
+.task-hover-dropdown[style*="display: flex"],
+.task-hover-dropdown.show {
+    display: flex !important;
 }
 
 /* 下拉層資訊行樣式 */
@@ -608,6 +630,9 @@ body {
     align-items: flex-start;
     gap: 8px;
     padding: 4px 0;
+    width: 100%;
+    box-sizing: border-box;
+    flex-wrap: wrap; /* 允許在極窄的情況下換行 */
 }
 
 .dropdown-label {
@@ -616,17 +641,40 @@ body {
     min-width: 80px;
     flex-shrink: 0;
     font-size: 0.85em;
+    line-height: 1.4;
+    white-space: nowrap; /* 標籤不換行 */
 }
 
 .dropdown-value {
     color: #333;
     flex: 1;
-    word-break: break-word;
+    min-width: 0; /* 允許 flex 項目縮小 */
+    word-break: break-word; /* 允許在單詞內斷行 */
+    overflow-wrap: break-word; /* 處理長單詞 */
+    hyphens: auto; /* 自動連字符（如果瀏覽器支援） */
     font-size: 0.85em;
+    line-height: 1.4;
+    white-space: normal; /* 允許換行 */
 }
 
 .dropdown-section {
     margin-bottom: 4px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* 工作項目容器（在下拉層中） */
+.dropdown-section .task-item-chip {
+    background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 500;
+    white-space: nowrap;
+    display: inline-block;
+    margin: 0;
+    box-sizing: border-box;
 }
 
 /* 工作項目容器樣式（在任務條上，hover 時顯示）- 已廢棄，改用 task-hover-dropdown */
