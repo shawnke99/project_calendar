@@ -607,7 +607,7 @@ body {
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
     min-width: 250px;
-    max-width: 450px;
+    max-width: 90vw; /* 允許更寬以適應橫向佈局 */
     width: max-content; /* 根據內容自動調整寬度 */
     opacity: 0;
     transform: translateY(-5px);
@@ -616,6 +616,61 @@ body {
     flex-direction: column;
     gap: 8px;
     box-sizing: border-box; /* 確保 padding 包含在寬度內 */
+}
+
+/* 橫向任務容器（多任務時使用） */
+.task-horizontal-container {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+}
+
+.task-horizontal-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.task-horizontal-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.task-horizontal-container::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.3);
+    border-radius: 3px;
+}
+
+.task-horizontal-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 92, 246, 0.5);
+}
+
+/* 任務卡片（橫向佈局中的單個任務） */
+.task-card {
+    min-width: 200px;
+    max-width: 280px;
+    flex-shrink: 0;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 6px;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+}
+
+.task-card-title {
+    font-weight: 600;
+    font-size: 0.9em;
+    color: #8b5cf6;
+    margin-bottom: 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.task-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 /* hover 時顯示 */

@@ -178,11 +178,11 @@ const SystemConfig = {
             purpose: false,        // 環境目的（已在任務條上顯示）
             batch: false,          // 執行梯次（已在任務條上顯示）
             status: false,         // 狀態（已在任務條上顯示）
-            dataBaseDate: true,   // 資料基準日
+            dataBaseDate: false,   // 資料基準日
             kingdomFreezeDate: false, // 京城封版日
             kingdomTransferDate: false, // 京城傳送中介檔日
             intermediateFile: false, // 中介檔
-            remark: false           // 備注說明
+            remark: true           // 備注說明
         }
     },
 

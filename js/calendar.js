@@ -1512,6 +1512,9 @@ class Calendar {
         const hasFieldsToShow = Object.keys(hoverDropdownFields).some(key => hoverDropdownFields[key] === true);
         if (!hasFieldsToShow) return;
         
+        // 檢查是否有任務
+        if (!taskRange.tasks || taskRange.tasks.length === 0) return;
+        
         // 創建下拉層容器（樣式主要由 CSS 控制，這裡只設置必要的動態樣式）
         const dropdown = document.createElement('div');
         dropdown.className = 'task-hover-dropdown';
@@ -1528,6 +1531,246 @@ class Calendar {
             return; // 如果找不到容器，不創建下拉層
         }
         
+        // 如果有多個任務，使用橫向（水平）佈局顯示每個任務的資料
+        const hasMultipleTasks = taskRange.tasks.length > 1;
+        
+        if (hasMultipleTasks) {
+            // 多任務橫向佈局
+            this.createHorizontalTaskView(dropdown, taskRange, hoverDropdownFields);
+        } else {
+            // 單任務垂直佈局（保持原有邏輯）
+            this.createVerticalTaskView(dropdown, taskRange, hoverDropdownFields);
+        }
+        
+        // 如果沒有任何內容，不顯示下拉層
+        if (dropdown.children.length === 0) {
+            dropdown.remove();
+            return;
+        }
+        
+        // 添加 hover 事件監聽器
+        this.setupHoverEvents(taskBar, dropdown, container);
+    }
+    
+    /**
+     * 創建橫向（水平）任務視圖（多任務時使用）
+     * @param {HTMLElement} dropdown - 下拉層容器
+     * @param {Object} taskRange - 任務範圍資訊
+     * @param {Object} hoverDropdownFields - 欄位顯示配置
+     */
+    createHorizontalTaskView(dropdown, taskRange, hoverDropdownFields) {
+        // 創建橫向滾動容器
+        const horizontalContainer = document.createElement('div');
+        horizontalContainer.className = 'task-horizontal-container';
+        horizontalContainer.style.display = 'flex';
+        horizontalContainer.style.gap = '12px';
+        horizontalContainer.style.overflowX = 'auto';
+        horizontalContainer.style.overflowY = 'visible';
+        horizontalContainer.style.paddingBottom = '4px';
+        
+        // 為每個任務創建一個卡片
+        taskRange.tasks.forEach((task, taskIndex) => {
+            const taskCard = document.createElement('div');
+            taskCard.className = 'task-card';
+            taskCard.style.minWidth = '200px';
+            taskCard.style.maxWidth = '280px';
+            taskCard.style.flexShrink = '0';
+            taskCard.style.padding = '10px';
+            taskCard.style.backgroundColor = 'rgba(255, 255, 255, 0.5)';
+            taskCard.style.borderRadius = '6px';
+            taskCard.style.border = '1px solid rgba(0, 0, 0, 0.1)';
+            taskCard.style.boxSizing = 'border-box';
+            
+            // 任務標題（工作項目）
+            if (hoverDropdownFields.task) {
+                const taskTitle = document.createElement('div');
+                taskTitle.className = 'task-card-title';
+                taskTitle.textContent = task.content || task.task || `任務 ${taskIndex + 1}`;
+                taskTitle.style.fontWeight = '600';
+                taskTitle.style.fontSize = '0.9em';
+                taskTitle.style.color = '#8b5cf6';
+                taskTitle.style.marginBottom = '8px';
+                taskTitle.style.paddingBottom = '6px';
+                taskTitle.style.borderBottom = '1px solid rgba(139, 92, 246, 0.2)';
+                taskCard.appendChild(taskTitle);
+            }
+            
+            // 創建資訊區塊
+            const createInfoRow = (label, value, color = null) => {
+                if (!value && value !== 0) return null;
+                
+                const row = document.createElement('div');
+                row.className = 'dropdown-info-row';
+                row.style.marginBottom = '4px';
+                
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'dropdown-label';
+                labelSpan.textContent = label + '：';
+                labelSpan.style.fontSize = '0.8em';
+                row.appendChild(labelSpan);
+                
+                const valueSpan = document.createElement('span');
+                valueSpan.className = 'dropdown-value';
+                valueSpan.textContent = value;
+                valueSpan.style.fontSize = '0.8em';
+                if (color) {
+                    valueSpan.style.color = color;
+                }
+                row.appendChild(valueSpan);
+                
+                return row;
+            };
+            
+            // 顯示各欄位（基於當前任務）
+            const taskInfoContainer = document.createElement('div');
+            taskInfoContainer.className = 'task-card-info';
+            
+            // 開始日期
+            if (hoverDropdownFields.startDate && taskRange.startDate) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('startDate'),
+                    this.formatDate(taskRange.startDate),
+                    '#10b981'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 結束日期
+            if (hoverDropdownFields.endDate && taskRange.endDate) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('endDate'),
+                    this.formatDate(taskRange.endDate),
+                    '#ef4444'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 營業日（從當前任務取得）
+            if (hoverDropdownFields.businessDate && task.businessDate) {
+                let businessDateDisplay = '';
+                if (task.businessDate instanceof Date) {
+                    businessDateDisplay = this.formatDate(task.businessDate);
+                } else if (typeof task.businessDate === 'string') {
+                    try {
+                        businessDateDisplay = this.formatDate(new Date(task.businessDate));
+                    } catch {
+                        businessDateDisplay = task.businessDate;
+                    }
+                } else {
+                    businessDateDisplay = String(task.businessDate);
+                }
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('businessDate'),
+                    businessDateDisplay,
+                    '#f59e0b'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 資料基準日（從當前任務取得）
+            if (hoverDropdownFields.dataBaseDate && task.dataBaseDate) {
+                let dataBaseDateDisplay = '';
+                if (task.dataBaseDate instanceof Date) {
+                    dataBaseDateDisplay = this.formatDate(task.dataBaseDate);
+                } else if (typeof task.dataBaseDate === 'string') {
+                    try {
+                        dataBaseDateDisplay = this.formatDate(new Date(task.dataBaseDate));
+                    } catch {
+                        dataBaseDateDisplay = task.dataBaseDate;
+                    }
+                } else {
+                    dataBaseDateDisplay = String(task.dataBaseDate);
+                }
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('dataBaseDate'),
+                    dataBaseDateDisplay,
+                    '#06b6d4'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 京城封版日（從當前任務取得）
+            if (hoverDropdownFields.kingdomFreezeDate && task.kingdomFreezeDate) {
+                let freezeDateDisplay = '';
+                if (task.kingdomFreezeDate instanceof Date) {
+                    freezeDateDisplay = this.formatDate(task.kingdomFreezeDate);
+                } else if (typeof task.kingdomFreezeDate === 'string') {
+                    try {
+                        freezeDateDisplay = this.formatDate(new Date(task.kingdomFreezeDate));
+                    } catch {
+                        freezeDateDisplay = task.kingdomFreezeDate;
+                    }
+                } else {
+                    freezeDateDisplay = String(task.kingdomFreezeDate);
+                }
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('kingdomFreezeDate'),
+                    freezeDateDisplay,
+                    '#ec4899'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 京城傳送中介檔日（從當前任務取得）
+            if (hoverDropdownFields.kingdomTransferDate && task.kingdomTransferDate) {
+                let transferDateDisplay = '';
+                if (task.kingdomTransferDate instanceof Date) {
+                    transferDateDisplay = this.formatDate(task.kingdomTransferDate);
+                } else if (typeof task.kingdomTransferDate === 'string') {
+                    try {
+                        transferDateDisplay = this.formatDate(new Date(task.kingdomTransferDate));
+                    } catch {
+                        transferDateDisplay = task.kingdomTransferDate;
+                    }
+                } else {
+                    transferDateDisplay = String(task.kingdomTransferDate);
+                }
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('kingdomTransferDate'),
+                    transferDateDisplay,
+                    '#8b5cf6'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 中介檔（從當前任務取得）
+            if (hoverDropdownFields.intermediateFile && task.intermediateFile) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('intermediateFile'),
+                    task.intermediateFile,
+                    '#6366f1'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            // 備注說明（從當前任務取得）
+            if (hoverDropdownFields.remark && task.remark) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('remark'),
+                    task.remark,
+                    '#6b7280'
+                );
+                if (row) taskInfoContainer.appendChild(row);
+            }
+            
+            taskCard.appendChild(taskInfoContainer);
+            horizontalContainer.appendChild(taskCard);
+        });
+        
+        dropdown.appendChild(horizontalContainer);
+    }
+    
+    /**
+     * 創建垂直任務視圖（單任務時使用，保持原有邏輯）
+     * @param {HTMLElement} dropdown - 下拉層容器
+     * @param {Object} taskRange - 任務範圍資訊
+     * @param {Object} hoverDropdownFields - 欄位顯示配置
+     */
+    createVerticalTaskView(dropdown, taskRange, hoverDropdownFields) {
         // 創建資訊區塊
         const createInfoRow = (label, value, color = null) => {
             if (!value && value !== 0) return null;
@@ -1794,8 +2037,15 @@ class Calendar {
             dropdown.remove();
             return;
         }
-        
-        // 添加 hover 事件監聽器
+    }
+    
+    /**
+     * 設置 hover 事件監聽器
+     * @param {HTMLElement} taskBar - 任務條元素
+     * @param {HTMLElement} dropdown - 下拉層元素
+     * @param {HTMLElement} container - 容器元素
+     */
+    setupHoverEvents(taskBar, dropdown, container) {
         const updateDropdownPosition = () => {
             const taskBarRect = taskBar.getBoundingClientRect();
             const gridRect = container.getBoundingClientRect();
