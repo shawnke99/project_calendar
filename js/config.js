@@ -86,7 +86,7 @@ const SystemConfig = {
         autoResize: true,              // 是否在視窗大小改變時自動重新渲染日曆
         resizeDebounceDelay: 300,      // 視窗大小改變時的防抖延遲（毫秒）
         // 多月份顯示設定
-        monthsToDisplay: 2,            // 同時顯示的月份數量（1-12，預設為 1，多月份時會上下排列）
+        monthsToDisplay: 4,            // 同時顯示的月份數量（1-12，預設為 1，多月份時會上下排列）
         // 預設顯示日期區間（如果資料中沒有日期，或需要指定初始顯示月份）
         defaultYear: null,             // 預設年份（null = 自動使用資料中的最早年份）
         defaultMonth: null,            // 預設月份（0-11，null = 自動使用資料中的最早月份）
@@ -165,6 +165,22 @@ const SystemConfig = {
             kingdomTransferDate: '#06b6d4', // 青色
             intermediateFile: '#64748b', // 灰色
             remark: '#64748b'       // 灰色
+        },
+        // 懸停下拉層顯示的欄位配置（當 hoverEffect 為 true 時生效）
+        // 控制當滑鼠移到任務條上時，下拉層中顯示哪些資訊
+        hoverDropdownFields: {
+            task: true,            // 工作項目（工作內容）
+            startDate: false,       // 開始日期
+            endDate: false,         // 結束日期
+            businessDate: false,    // 營業日
+            purpose: false,        // 環境目的（已在任務條上顯示）
+            batch: false,          // 執行梯次（已在任務條上顯示）
+            status: false,         // 狀態（已在任務條上顯示）
+            dataBaseDate: true,   // 資料基準日
+            kingdomFreezeDate: false, // 京城封版日
+            kingdomTransferDate: false, // 京城傳送中介檔日
+            intermediateFile: false, // 中介檔
+            remark: false           // 備注說明
         }
     },
 

@@ -549,7 +549,7 @@ body {
     z-index: 5;
     display: flex;
     align-items: center;
-    flex-wrap: wrap; /* 允許內容換行 */
+    flex-wrap: nowrap; /* 不換行，保持單行顯示 */
     padding: 4px 6px;
     margin-top: 2px;
     margin-bottom: 2px;
@@ -558,7 +558,7 @@ body {
     font-size: 0.7em;
     transition: all 0.2s ease;
     box-sizing: border-box; /* 確保寬度計算一致，包含 border 和 padding */
-    overflow: visible; /* 允許內容換行顯示 */
+    overflow: visible; /* 允許下拉層顯示 */
     gap: 4px; /* 元素間距 */
 }
 
@@ -568,7 +568,7 @@ body {
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     opacity: 0.9;
     z-index: 10;
-    overflow: visible; /* hover 時允許內容溢出 */
+    overflow: visible; /* hover 時允許下拉層顯示 */
 }
 
 .task-bar-badge {
@@ -581,19 +581,92 @@ body {
     font-weight: 600;
 }
 
-/* 工作項目容器樣式 */
-.task-items-container {
+/* 懸停下拉層樣式 */
+.task-hover-dropdown {
+    display: none; /* 預設隱藏 */
+    position: absolute;
+    z-index: 20;
+    margin-top: 4px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    min-width: 250px;
+    max-width: 450px;
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: auto; /* 確保可以互動 */
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 下拉層資訊行樣式 */
+.dropdown-info-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.dropdown-label {
+    font-weight: 600;
+    color: #666;
+    min-width: 80px;
+    flex-shrink: 0;
+    font-size: 0.85em;
+}
+
+.dropdown-value {
+    color: #333;
+    flex: 1;
+    word-break: break-word;
+    font-size: 0.85em;
+}
+
+.dropdown-section {
+    margin-bottom: 4px;
+}
+
+/* 工作項目容器樣式（在任務條上，hover 時顯示）- 已廢棄，改用 task-hover-dropdown */
+.task-items-container.task-items-dropdown {
+    display: none; /* 預設隱藏 */
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 20;
+    margin-top: 4px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+    min-width: 200px;
+    max-width: 400px;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: flex-start;
+    opacity: 0;
+    transform: translateY(-5px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    pointer-events: auto; /* 確保可以互動 */
+}
+
+/* 工作項目容器樣式（在日期格子中，始終顯示） */
+.task-items-container:not(.task-items-dropdown) {
     display: flex;
     flex-wrap: wrap;
-    gap: 3px;
+    gap: 4px;
     align-items: center;
+    margin-top: 4px;
 }
 
 /* 工作項目標籤樣式 */
 .task-item-chip {
     background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
     color: #ffffff;
-    padding: 3px 8px;
+    padding: 4px 10px;
     border-radius: 12px;
     font-size: 0.7em;
     font-weight: 500;
@@ -603,7 +676,7 @@ body {
     display: inline-block;
     box-shadow: 0 1px 3px rgba(139, 92, 246, 0.3);
     transition: all 0.2s ease;
-    max-width: 200px;
+    max-width: 100%;
 }
 
 .task-item-chip:hover {

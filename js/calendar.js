@@ -551,6 +551,8 @@ class Calendar {
         // 使用絕對定位，相對於日曆網格定位
         taskBar.style.position = 'absolute';
         taskBar.style.zIndex = '5';
+        // 為了讓下拉層正確定位，任務條本身也需要是 relative（但實際定位由 absolute 控制）
+        // 這裡保持 absolute，下拉層會相對於任務條定位
         
         // 應用懸停效果（如果啟用）
         if (this.config.taskDisplay?.hoverEffect !== false) {
@@ -725,8 +727,13 @@ class Calendar {
         // 取得任務條欄位顯示配置
         const taskBarFields = this.config.taskDisplay?.taskBarFields || {};
         
-        // 動態顯示所有配置的欄位
-        this.renderTaskBarFields(taskBar, taskRange, taskBarFields);
+        // 動態顯示所有配置的欄位（傳入 targetContainer 以便下拉層可以正確定位）
+        this.renderTaskBarFields(taskBar, taskRange, taskBarFields, targetContainer);
+        
+        // 創建懸停下拉層（如果啟用 hoverEffect）
+        if (this.config.taskDisplay?.hoverEffect !== false) {
+            this.createHoverDropdown(taskBar, taskRange, targetContainer);
+        }
         
         // 點擊事件 - 使用 addEventListener 確保事件正確綁定
         taskBar.addEventListener('click', (e) => {
@@ -865,8 +872,9 @@ class Calendar {
      * @param {HTMLElement} taskBar - 任務條元素
      * @param {Object} taskRange - 任務範圍資訊
      * @param {Object} taskBarFields - 欄位顯示配置
+     * @param {HTMLElement} targetContainer - 目標容器（用於下拉層定位）
      */
-    renderTaskBarFields(taskBar, taskRange, taskBarFields) {
+    renderTaskBarFields(taskBar, taskRange, taskBarFields, targetContainer) {
         // 環境名稱（特殊處理：主要識別，樣式不同）
         if (taskBarFields.environment !== false) {
             const envName = document.createElement('span');
@@ -915,44 +923,108 @@ class Calendar {
                     }
                     break;
                 case 'task':
-                    // 顯示工作項目（工作內容）- 使用現代化的標籤樣式
+                    // 顯示工作項目（工作內容）- 只在 hover 時以層疊方式顯示
                     if (taskRange.tasks && taskRange.tasks.length > 0) {
                         const taskContents = taskRange.tasks
                             .map(task => task.content || task.task || '')
                             .filter(content => content && content.trim() !== '')
                             .filter((value, index, self) => self.indexOf(value) === index); // 去重
                         
-                        if (taskContents.length > 0) {
-                            // 創建工作項目容器（允許換行）
-                            const taskContainer = document.createElement('span');
-                            taskContainer.className = 'task-items-container';
-                            taskContainer.style.display = 'inline-flex';
+                        if (taskContents.length > 0 && this.config.taskDisplay?.hoverEffect !== false) {
+                            // 創建工作項目容器（層疊顯示，預設隱藏）
+                            const taskContainer = document.createElement('div');
+                            taskContainer.className = 'task-items-container task-items-dropdown';
+                            taskContainer.style.display = 'none'; // 預設隱藏
+                            taskContainer.style.position = 'absolute';
+                            taskContainer.style.top = '100%';
+                            taskContainer.style.left = '0';
+                            taskContainer.style.zIndex = '20';
+                            taskContainer.style.marginTop = '4px';
+                            taskContainer.style.padding = '8px';
+                            taskContainer.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
+                            taskContainer.style.borderRadius = '8px';
+                            taskContainer.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15)';
+                            taskContainer.style.minWidth = '200px';
+                            taskContainer.style.maxWidth = '400px';
                             taskContainer.style.flexWrap = 'wrap';
-                            taskContainer.style.gap = '3px';
-                            taskContainer.style.marginLeft = '4px';
-                            taskContainer.style.alignItems = 'center';
+                            taskContainer.style.gap = '6px';
+                            taskContainer.style.alignItems = 'flex-start';
+                            taskContainer.style.opacity = '0';
+                            taskContainer.style.transform = 'translateY(-5px)';
+                            taskContainer.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
                             
                             // 為每個工作項目創建小標籤
-                            taskContents.forEach((content, index) => {
+                            taskContents.forEach((content) => {
                                 const taskChip = document.createElement('span');
                                 taskChip.className = 'task-item-chip';
                                 taskChip.textContent = content;
                                 taskChip.style.backgroundColor = '#8b5cf6';
                                 taskChip.style.color = '#ffffff';
-                                taskChip.style.padding = '2px 6px';
-                                taskChip.style.borderRadius = '10px';
-                                taskChip.style.fontSize = '0.6em';
+                                taskChip.style.padding = '4px 10px';
+                                taskChip.style.borderRadius = '12px';
+                                taskChip.style.fontSize = '0.7em';
                                 taskChip.style.fontWeight = '500';
                                 taskChip.style.whiteSpace = 'nowrap';
-                                taskChip.style.maxWidth = '200px';
-                                taskChip.style.overflow = 'hidden';
-                                taskChip.style.textOverflow = 'ellipsis';
+                                taskChip.style.display = 'inline-block';
                                 taskChip.title = content; // 懸停顯示完整內容
                                 taskContainer.appendChild(taskChip);
                             });
                             
-                            // 將容器添加到任務條
-                            taskBar.appendChild(taskContainer);
+                            // 將下拉層添加到日曆網格容器（而不是任務條），這樣可以正確定位
+                            // 先將容器添加到任務條作為標記，然後移動到網格容器
+                            taskBar.setAttribute('data-task-container-id', `task-container-${taskRange.rangeId}`);
+                            targetContainer.appendChild(taskContainer);
+                            
+                            // 添加 hover 事件監聽器
+                            const updateDropdownPosition = () => {
+                                const taskBarRect = taskBar.getBoundingClientRect();
+                                const container = targetContainer || taskBar.closest('.month-grid') || taskBar.closest('.calendar-grid');
+                                if (container) {
+                                    const gridRect = container.getBoundingClientRect();
+                                    // 下拉層應該在任務條下方，左對齊
+                                    taskContainer.style.left = `${taskBarRect.left - gridRect.left}px`;
+                                    taskContainer.style.top = `${taskBarRect.bottom - gridRect.top + 4}px`;
+                                }
+                            };
+                            
+                            taskBar.addEventListener('mouseenter', () => {
+                                updateDropdownPosition();
+                                taskContainer.style.display = 'flex';
+                                // 使用 requestAnimationFrame 確保樣式已應用
+                                requestAnimationFrame(() => {
+                                    taskContainer.style.opacity = '1';
+                                    taskContainer.style.transform = 'translateY(0)';
+                                });
+                            });
+                            
+                            taskBar.addEventListener('mouseleave', () => {
+                                taskContainer.style.opacity = '0';
+                                taskContainer.style.transform = 'translateY(-5px)';
+                                // 動畫完成後隱藏
+                                setTimeout(() => {
+                                    if (taskContainer.style.opacity === '0') {
+                                        taskContainer.style.display = 'none';
+                                    }
+                                }, 200);
+                            });
+                            
+                            // 當滑鼠移到下拉層時，保持顯示
+                            taskContainer.addEventListener('mouseenter', () => {
+                                updateDropdownPosition();
+                                taskContainer.style.opacity = '1';
+                                taskContainer.style.transform = 'translateY(0)';
+                            });
+                            
+                            taskContainer.addEventListener('mouseleave', () => {
+                                taskContainer.style.opacity = '0';
+                                taskContainer.style.transform = 'translateY(-5px)';
+                                setTimeout(() => {
+                                    if (taskContainer.style.opacity === '0') {
+                                        taskContainer.style.display = 'none';
+                                    }
+                                }, 200);
+                            });
+                            
                             return; // 跳過後續的 badge 創建邏輯
                         }
                     }
@@ -1045,6 +1117,374 @@ class Calendar {
     getFieldDisplayName(fieldKey) {
         const fieldDisplayNames = this.config.fieldDisplayNames || {};
         return fieldDisplayNames[fieldKey] || fieldKey;
+    }
+
+    /**
+     * 創建懸停下拉層（顯示詳細資訊）
+     * @param {HTMLElement} taskBar - 任務條元素
+     * @param {Object} taskRange - 任務範圍資訊
+     * @param {HTMLElement} targetContainer - 目標容器（用於下拉層定位）
+     */
+    createHoverDropdown(taskBar, taskRange, targetContainer) {
+        const hoverDropdownFields = this.config.taskDisplay?.hoverDropdownFields || {};
+        
+        // 檢查是否有任何欄位需要顯示
+        const hasFieldsToShow = Object.keys(hoverDropdownFields).some(key => hoverDropdownFields[key] === true);
+        if (!hasFieldsToShow) return;
+        
+        // 創建下拉層容器
+        const dropdown = document.createElement('div');
+        dropdown.className = 'task-hover-dropdown';
+        dropdown.style.position = 'absolute';
+        dropdown.style.zIndex = '20';
+        dropdown.style.marginTop = '4px';
+        dropdown.style.padding = '12px';
+        dropdown.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
+        dropdown.style.backdropFilter = 'blur(10px)';
+        dropdown.style.borderRadius = '8px';
+        dropdown.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05)';
+        dropdown.style.minWidth = '250px';
+        dropdown.style.maxWidth = '450px';
+        dropdown.style.opacity = '0';
+        dropdown.style.transform = 'translateY(-5px)';
+        dropdown.style.transition = 'opacity 0.2s ease, transform 0.2s ease';
+        dropdown.style.display = 'none'; // 預設隱藏
+        dropdown.style.flexDirection = 'column';
+        dropdown.style.gap = '8px';
+        
+        // 將下拉層添加到目標容器
+        const container = targetContainer || taskBar.closest('.month-grid') || taskBar.closest('.calendar-grid');
+        if (container) {
+            container.appendChild(dropdown);
+        } else {
+            return; // 如果找不到容器，不創建下拉層
+        }
+        
+        // 創建資訊區塊
+        const createInfoRow = (label, value, color = null) => {
+            if (!value && value !== 0) return null;
+            
+            const row = document.createElement('div');
+            row.className = 'dropdown-info-row';
+            row.style.display = 'flex';
+            row.style.alignItems = 'flex-start';
+            row.style.gap = '8px';
+            row.style.padding = '4px 0';
+            
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'dropdown-label';
+            labelSpan.textContent = label + '：';
+            labelSpan.style.fontWeight = '600';
+            labelSpan.style.color = '#666';
+            labelSpan.style.minWidth = '80px';
+            labelSpan.style.flexShrink = '0';
+            row.appendChild(labelSpan);
+            
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'dropdown-value';
+            valueSpan.textContent = value;
+            valueSpan.style.color = color || '#333';
+            valueSpan.style.flex = '1';
+            valueSpan.style.wordBreak = 'break-word';
+            row.appendChild(valueSpan);
+            
+            return row;
+        };
+        
+        // 顯示工作項目
+        if (hoverDropdownFields.task && taskRange.tasks && taskRange.tasks.length > 0) {
+            const taskContents = taskRange.tasks
+                .map(task => task.content || task.task || '')
+                .filter(content => content && content.trim() !== '')
+                .filter((value, index, self) => self.indexOf(value) === index); // 去重
+            
+            if (taskContents.length > 0) {
+                const taskSection = document.createElement('div');
+                taskSection.className = 'dropdown-section';
+                taskSection.style.marginBottom = '4px';
+                
+                const taskLabel = document.createElement('div');
+                taskLabel.textContent = this.getFieldDisplayName('task') + '：';
+                taskLabel.style.fontWeight = '600';
+                taskLabel.style.color = '#666';
+                taskLabel.style.marginBottom = '6px';
+                taskLabel.style.fontSize = '0.85em';
+                taskSection.appendChild(taskLabel);
+                
+                const taskChipsContainer = document.createElement('div');
+                taskChipsContainer.style.display = 'flex';
+                taskChipsContainer.style.flexWrap = 'wrap';
+                taskChipsContainer.style.gap = '6px';
+                
+                taskContents.forEach((content) => {
+                    const taskChip = document.createElement('span');
+                    taskChip.className = 'task-item-chip';
+                    taskChip.textContent = content;
+                    taskChip.style.backgroundColor = '#8b5cf6';
+                    taskChip.style.color = '#ffffff';
+                    taskChip.style.padding = '4px 10px';
+                    taskChip.style.borderRadius = '12px';
+                    taskChip.style.fontSize = '0.75em';
+                    taskChip.style.fontWeight = '500';
+                    taskChip.style.whiteSpace = 'nowrap';
+                    taskChip.style.display = 'inline-block';
+                    taskChip.title = content;
+                    taskChipsContainer.appendChild(taskChip);
+                });
+                
+                taskSection.appendChild(taskChipsContainer);
+                dropdown.appendChild(taskSection);
+            }
+        }
+        
+        // 顯示開始日期
+        if (hoverDropdownFields.startDate && taskRange.startDate) {
+            const row = createInfoRow(
+                this.getFieldDisplayName('startDate'),
+                this.formatDate(taskRange.startDate),
+                '#10b981'
+            );
+            if (row) dropdown.appendChild(row);
+        }
+        
+        // 顯示結束日期
+        if (hoverDropdownFields.endDate && taskRange.endDate) {
+            const row = createInfoRow(
+                this.getFieldDisplayName('endDate'),
+                this.formatDate(taskRange.endDate),
+                '#ef4444'
+            );
+            if (row) dropdown.appendChild(row);
+        }
+        
+        // 顯示營業日
+        if (hoverDropdownFields.businessDate && taskRange.tasks && taskRange.tasks.length > 0) {
+            const businessDates = taskRange.tasks
+                .map(task => task.businessDate)
+                .filter(date => date)
+                .filter((value, index, self) => {
+                    const dateStr = value instanceof Date ? this.formatDateForComparison(value) : String(value);
+                    return self.findIndex(d => {
+                        const dStr = d instanceof Date ? this.formatDateForComparison(d) : String(d);
+                        return dStr === dateStr;
+                    }) === index;
+                });
+            
+            if (businessDates.length > 0) {
+                const displayDates = businessDates.map(date => {
+                    if (date instanceof Date) {
+                        return this.formatDate(date);
+                    } else if (typeof date === 'string') {
+                        try {
+                            return this.formatDate(new Date(date));
+                        } catch {
+                            return date;
+                        }
+                    }
+                    return String(date);
+                }).join('、');
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('businessDate'),
+                    displayDates,
+                    '#f59e0b'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 顯示資料基準日
+        if (hoverDropdownFields.dataBaseDate && taskRange.tasks && taskRange.tasks.length > 0) {
+            const dataBaseDates = taskRange.tasks
+                .map(task => task.dataBaseDate)
+                .filter(date => date)
+                .filter((value, index, self) => {
+                    const dateStr = value instanceof Date ? this.formatDateForComparison(value) : String(value);
+                    return self.findIndex(d => {
+                        const dStr = d instanceof Date ? this.formatDateForComparison(d) : String(d);
+                        return dStr === dateStr;
+                    }) === index;
+                });
+            
+            if (dataBaseDates.length > 0) {
+                const displayDates = dataBaseDates.map(date => {
+                    if (date instanceof Date) {
+                        return this.formatDate(date);
+                    } else if (typeof date === 'string') {
+                        try {
+                            return this.formatDate(new Date(date));
+                        } catch {
+                            return date;
+                        }
+                    }
+                    return String(date);
+                }).join('、');
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('dataBaseDate'),
+                    displayDates,
+                    '#06b6d4'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 顯示京城封版日
+        if (hoverDropdownFields.kingdomFreezeDate && taskRange.tasks && taskRange.tasks.length > 0) {
+            const freezeDates = taskRange.tasks
+                .map(task => task.kingdomFreezeDate)
+                .filter(date => date)
+                .filter((value, index, self) => {
+                    const dateStr = value instanceof Date ? this.formatDateForComparison(value) : String(value);
+                    return self.findIndex(d => {
+                        const dStr = d instanceof Date ? this.formatDateForComparison(d) : String(d);
+                        return dStr === dateStr;
+                    }) === index;
+                });
+            
+            if (freezeDates.length > 0) {
+                const displayDates = freezeDates.map(date => {
+                    if (date instanceof Date) {
+                        return this.formatDate(date);
+                    } else if (typeof date === 'string') {
+                        try {
+                            return this.formatDate(new Date(date));
+                        } catch {
+                            return date;
+                        }
+                    }
+                    return String(date);
+                }).join('、');
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('kingdomFreezeDate'),
+                    displayDates,
+                    '#06b6d4'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 顯示京城傳送中介檔日
+        if (hoverDropdownFields.kingdomTransferDate && taskRange.tasks && taskRange.tasks.length > 0) {
+            const transferDates = taskRange.tasks
+                .map(task => task.kingdomTransferDate)
+                .filter(date => date)
+                .filter((value, index, self) => {
+                    const dateStr = value instanceof Date ? this.formatDateForComparison(value) : String(value);
+                    return self.findIndex(d => {
+                        const dStr = d instanceof Date ? this.formatDateForComparison(d) : String(d);
+                        return dStr === dateStr;
+                    }) === index;
+                });
+            
+            if (transferDates.length > 0) {
+                const displayDates = transferDates.map(date => {
+                    if (date instanceof Date) {
+                        return this.formatDate(date);
+                    } else if (typeof date === 'string') {
+                        try {
+                            return this.formatDate(new Date(date));
+                        } catch {
+                            return date;
+                        }
+                    }
+                    return String(date);
+                }).join('、');
+                
+                const row = createInfoRow(
+                    this.getFieldDisplayName('kingdomTransferDate'),
+                    displayDates,
+                    '#06b6d4'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 顯示中介檔
+        if (hoverDropdownFields.intermediateFile && taskRange.tasks && taskRange.tasks.length > 0) {
+            const files = taskRange.tasks
+                .map(task => task.intermediateFile)
+                .filter(file => file && file.trim() !== '')
+                .filter((value, index, self) => self.indexOf(value) === index);
+            
+            if (files.length > 0) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('intermediateFile'),
+                    files.join('、'),
+                    '#64748b'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 顯示備注說明
+        if (hoverDropdownFields.remark && taskRange.tasks && taskRange.tasks.length > 0) {
+            const remarks = taskRange.tasks
+                .map(task => task.remark)
+                .filter(remark => remark && remark.trim() !== '')
+                .filter((value, index, self) => self.indexOf(value) === index);
+            
+            if (remarks.length > 0) {
+                const row = createInfoRow(
+                    this.getFieldDisplayName('remark'),
+                    remarks.join('、'),
+                    '#64748b'
+                );
+                if (row) dropdown.appendChild(row);
+            }
+        }
+        
+        // 如果沒有任何內容，不顯示下拉層
+        if (dropdown.children.length === 0) {
+            dropdown.remove();
+            return;
+        }
+        
+        // 添加 hover 事件監聽器
+        const updateDropdownPosition = () => {
+            const taskBarRect = taskBar.getBoundingClientRect();
+            const gridRect = container.getBoundingClientRect();
+            // 下拉層應該在任務條下方，左對齊
+            dropdown.style.left = `${taskBarRect.left - gridRect.left}px`;
+            dropdown.style.top = `${taskBarRect.bottom - gridRect.top + 4}px`;
+        };
+        
+        taskBar.addEventListener('mouseenter', () => {
+            updateDropdownPosition();
+            dropdown.style.display = 'flex';
+            requestAnimationFrame(() => {
+                dropdown.style.opacity = '1';
+                dropdown.style.transform = 'translateY(0)';
+            });
+        });
+        
+        taskBar.addEventListener('mouseleave', () => {
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-5px)';
+            setTimeout(() => {
+                if (dropdown.style.opacity === '0') {
+                    dropdown.style.display = 'none';
+                }
+            }, 200);
+        });
+        
+        // 當滑鼠移到下拉層時，保持顯示
+        dropdown.addEventListener('mouseenter', () => {
+            updateDropdownPosition();
+            dropdown.style.opacity = '1';
+            dropdown.style.transform = 'translateY(0)';
+        });
+        
+        dropdown.addEventListener('mouseleave', () => {
+            dropdown.style.opacity = '0';
+            dropdown.style.transform = 'translateY(-5px)';
+            setTimeout(() => {
+                if (dropdown.style.opacity === '0') {
+                    dropdown.style.display = 'none';
+                }
+            }, 200);
+        });
     }
 
     /**
@@ -1259,16 +1699,17 @@ class Calendar {
             }
         }
         
-        // 更新非工作日說明（只顯示第一個月份）
-        this.updateNonWorkingDaysInfo(year, month);
+        // 更新非工作日說明（顯示所有顯示的月份）
+        this.updateNonWorkingDaysInfo(year, month, monthsToDisplay);
     }
 
     /**
      * 更新非工作日說明區塊
-     * @param {number} year - 年份
-     * @param {number} month - 月份
+     * @param {number} year - 起始年份
+     * @param {number} month - 起始月份
+     * @param {number} monthsToDisplay - 顯示的月份數量
      */
-    updateNonWorkingDaysInfo(year, month) {
+    updateNonWorkingDaysInfo(year, month, monthsToDisplay = 1) {
         const container = document.getElementById('nonWorkingDaysInfo');
         if (!container) return;
 
@@ -1284,55 +1725,71 @@ class Calendar {
         container.parentElement.style.display = 'block';
         container.innerHTML = '';
 
-        // 取得當月所有日期
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const daysInMonth = lastDay.getDate();
-
-        // 收集當月的非工作日（只包含自訂的非工作日，不包含週末）
+        // 收集所有顯示月份的非工作日（只包含自訂的非工作日，不包含週末）
         const nonWorkingDaysList = [];
         const processedDates = new Set();
 
-        // 檢查自訂非工作日
-        if (nonWorkingConfig.customDays && Array.isArray(nonWorkingConfig.customDays)) {
-            for (let day = 1; day <= daysInMonth; day++) {
-                const date = new Date(year, month, day);
-                date.setHours(0, 0, 0, 0);
-                const dateStr = this.formatDateForComparison(date);
-                
-                // 檢查是否在自訂非工作日列表中
-                for (const customDay of nonWorkingConfig.customDays) {
-                    let matches = false;
+        // 遍歷所有顯示的月份
+        for (let m = 0; m < monthsToDisplay; m++) {
+            const currentYear = new Date(year, month + m, 1).getFullYear();
+            const currentMonth = new Date(year, month + m, 1).getMonth();
+            
+            // 取得當月所有日期
+            const firstDay = new Date(currentYear, currentMonth, 1);
+            const lastDay = new Date(currentYear, currentMonth + 1, 0);
+            const daysInMonth = lastDay.getDate();
+
+            // 檢查自訂非工作日
+            if (nonWorkingConfig.customDays && Array.isArray(nonWorkingConfig.customDays)) {
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(currentYear, currentMonth, day);
+                    date.setHours(0, 0, 0, 0);
+                    const dateStr = this.formatDateForComparison(date);
                     
-                    if (customDay.date) {
-                        matches = this.isDateInRange(dateStr, customDay.date, customDay.date);
-                    } else if (customDay.start && customDay.end) {
-                        matches = this.isDateInRange(dateStr, customDay.start, customDay.end);
-                    }
-                    
-                    if (matches && !processedDates.has(dateStr)) {
-                        processedDates.add(dateStr);
-                        const description = customDay.description || '非工作日';
-                        nonWorkingDaysList.push({
-                            date: date,
-                            dateStr: dateStr,
-                            description: description,
-                            day: day
-                        });
-                        break; // 找到匹配就跳出，避免重複
+                    // 檢查是否在自訂非工作日列表中
+                    for (const customDay of nonWorkingConfig.customDays) {
+                        let matches = false;
+                        
+                        if (customDay.date) {
+                            matches = this.isDateInRange(dateStr, customDay.date, customDay.date);
+                        } else if (customDay.start && customDay.end) {
+                            matches = this.isDateInRange(dateStr, customDay.start, customDay.end);
+                        }
+                        
+                        if (matches && !processedDates.has(dateStr)) {
+                            processedDates.add(dateStr);
+                            const description = customDay.description || '非工作日';
+                            nonWorkingDaysList.push({
+                                date: date,
+                                dateStr: dateStr,
+                                description: description,
+                                year: currentYear,
+                                month: currentMonth,
+                                day: day
+                            });
+                            break; // 找到匹配就跳出，避免重複
+                        }
                     }
                 }
             }
         }
 
-        // 按日期排序
-        nonWorkingDaysList.sort((a, b) => a.day - b.day);
+        // 按日期排序（先按年份，再按月份，最後按日期）
+        nonWorkingDaysList.sort((a, b) => {
+            if (a.year !== b.year) return a.year - b.year;
+            if (a.month !== b.month) return a.month - b.month;
+            return a.day - b.day;
+        });
 
         // 如果沒有非工作日，顯示提示
         if (nonWorkingDaysList.length === 0) {
             const emptyMsg = document.createElement('div');
             emptyMsg.className = 'non-working-days-empty';
-            emptyMsg.textContent = '本月無特殊非工作日';
+            if (monthsToDisplay === 1) {
+                emptyMsg.textContent = '本月無特殊非工作日';
+            } else {
+                emptyMsg.textContent = `此${monthsToDisplay}個月無特殊非工作日`;
+            }
             emptyMsg.style.color = '#999';
             emptyMsg.style.fontStyle = 'italic';
             emptyMsg.style.padding = '10px';
@@ -1344,30 +1801,98 @@ class Calendar {
         const listContainer = document.createElement('div');
         listContainer.className = 'non-working-days-list';
 
-        nonWorkingDaysList.forEach(item => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'non-working-day-item';
+        // 按月份分組顯示（如果顯示多個月份）
+        if (monthsToDisplay > 1) {
+            const monthsMap = new Map();
+            
+            // 按月份分組
+            nonWorkingDaysList.forEach(item => {
+                const monthKey = `${item.year}-${item.month}`;
+                if (!monthsMap.has(monthKey)) {
+                    monthsMap.set(monthKey, {
+                        year: item.year,
+                        month: item.month,
+                        items: []
+                    });
+                }
+                monthsMap.get(monthKey).items.push(item);
+            });
+            
+            // 按月份順序顯示
+            const sortedMonths = Array.from(monthsMap.values()).sort((a, b) => {
+                if (a.year !== b.year) return a.year - b.year;
+                return a.month - b.month;
+            });
+            
+            sortedMonths.forEach(monthData => {
+                // 月份標題
+                const monthHeader = document.createElement('div');
+                monthHeader.className = 'non-working-days-month-header';
+                monthHeader.textContent = `${monthData.year}年${monthData.month + 1}月`;
+                monthHeader.style.fontWeight = '600';
+                monthHeader.style.color = '#1e3a8a';
+                monthHeader.style.marginTop = '15px';
+                monthHeader.style.marginBottom = '8px';
+                monthHeader.style.paddingBottom = '6px';
+                monthHeader.style.borderBottom = '2px solid #e5e7eb';
+                if (sortedMonths.indexOf(monthData) === 0) {
+                    monthHeader.style.marginTop = '0';
+                }
+                listContainer.appendChild(monthHeader);
+                
+                // 該月份的非工作日
+                monthData.items.forEach(item => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'non-working-day-item';
 
-            // 日期顯示
-            const dateSpan = document.createElement('span');
-            dateSpan.className = 'non-working-day-date';
-            dateSpan.textContent = `${month + 1}月${item.day}日`;
-            dateSpan.style.fontWeight = '600';
-            dateSpan.style.color = '#333';
-            dateSpan.style.marginRight = '12px';
-            dateSpan.style.minWidth = '60px';
-            dateSpan.style.display = 'inline-block';
+                    // 日期顯示（包含年份和月份）
+                    const dateSpan = document.createElement('span');
+                    dateSpan.className = 'non-working-day-date';
+                    dateSpan.textContent = `${item.month + 1}月${item.day}日`;
+                    dateSpan.style.fontWeight = '600';
+                    dateSpan.style.color = '#333';
+                    dateSpan.style.marginRight = '12px';
+                    dateSpan.style.minWidth = '60px';
+                    dateSpan.style.display = 'inline-block';
 
-            // 說明顯示
-            const descSpan = document.createElement('span');
-            descSpan.className = 'non-working-day-description';
-            descSpan.textContent = item.description;
-            descSpan.style.color = '#666';
+                    // 說明顯示
+                    const descSpan = document.createElement('span');
+                    descSpan.className = 'non-working-day-description';
+                    descSpan.textContent = item.description;
+                    descSpan.style.color = '#666';
 
-            itemDiv.appendChild(dateSpan);
-            itemDiv.appendChild(descSpan);
-            listContainer.appendChild(itemDiv);
-        });
+                    itemDiv.appendChild(dateSpan);
+                    itemDiv.appendChild(descSpan);
+                    listContainer.appendChild(itemDiv);
+                });
+            });
+        } else {
+            // 單月份顯示，不需要月份標題
+            nonWorkingDaysList.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'non-working-day-item';
+
+                // 日期顯示
+                const dateSpan = document.createElement('span');
+                dateSpan.className = 'non-working-day-date';
+                dateSpan.textContent = `${item.month + 1}月${item.day}日`;
+                dateSpan.style.fontWeight = '600';
+                dateSpan.style.color = '#333';
+                dateSpan.style.marginRight = '12px';
+                dateSpan.style.minWidth = '60px';
+                dateSpan.style.display = 'inline-block';
+
+                // 說明顯示
+                const descSpan = document.createElement('span');
+                descSpan.className = 'non-working-day-description';
+                descSpan.textContent = item.description;
+                descSpan.style.color = '#666';
+
+                itemDiv.appendChild(dateSpan);
+                itemDiv.appendChild(descSpan);
+                listContainer.appendChild(itemDiv);
+            });
+        }
 
         container.appendChild(listContainer);
     }
